@@ -1,0 +1,708 @@
+---
+title: 'Business Statistics Assessment IB94X0 2020-2021 #1'
+author: 2002843
+output: 
+   html_document:
+    toc: true
+    toc_depth: 3 
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, message=FALSE, warning = FALSE}
+library(tidyverse)
+library(dplyr)
+library(tidyr)
+library(tidyverse)
+#install.packages("emmeans")
+library(emmeans)
+#install.packages("Hmisc") #for correlation
+library(Hmisc)
+library(gridExtra)
+#install.packages("Rmisc")
+library(Rmisc)
+#install.packages("wesanderson")
+library(wesanderson)
+library(grid) # for grid.arrange()
+options(width=100)
+```
+
+---
+
+
+# Question 1 Section 1
+### I. Introduction & Research Method
+To discuss whether the new store layout and signage changed average sales, there are several steps needed to conduct. From data preparation to evaluation, the first step is to examine the data distribution and to check the outliers. Then we can do the $t$-test to see whether the mean gain is significantly different to 0 based on NHST method. After the $t$-test, building the linear model and evaluating the model can estimate the benefits of the new store layout and signage.
+  
+### II. Results
+To begin with, after plotting the data, we can see that the data distribution of sales both before and after the new layout is positive skew with the mean of 14,144,900 and 14,362,091 pounds respectively.
+
+![](S1_data_distribution.png)
+
+<font size="2"><span style="color:grey">Figure 1, The Data Distribution of Sales (£)</span></font>
+
+Each dot represents the sales in pounds before and after the trial period, no matter the stores were chosen in trial or not.
+
+Due to the scale of the stores, the store types, and other reasons, some stores had higher sales scale than others. It is hard to see the difference according to sales distribution. To reduce the effect of sales scale and focus on the change between sales before and after the new layout, we took sales after the new layout subtracting sales before that to get the gain, which shows the change of sales in pounds. We, then, also plot the gain to see the data distribution.
+
+![](gain frequency.png)
+
+<font size="2"><span style="color:grey">Figure 2, The Frequency of Gain (£)</span></font>
+
+Figure 2 looks more likely to be a normal distribution than figure 1. The mean of gain of the stores without trial is 18,088.69 pounds and the mean of gain of the stores with the trial is 426,892.81 pounds.
+
+To compare with the data in pounds, we took the gain dividing the sales before the new layout to transform the data into percentage format and plotted it to see the data distribution. 
+
+![](gain frequency_percent.png)
+
+<font size="2"><span style="color:grey">Figure 3, The Frequency of Gain (%)</span></font>
+
+Comparing to figure 2, the range of gain frequency in percentage is smaller than figure 2. Before, each store naturally has a different sales scale according to many different factors, such as business type, location, or others. After changing the gain from pounds to percentage, it eliminated the scales factors and, hence, reduced the range.
+
+Next, we take a look at the box plot to find the outliers.
+
+![](outliers.png)
+
+<font size="2"><span style="color:grey">Figure 4, Gain (£) of Stores</span></font>
+
+![](outliers_percent.png)
+
+<font size="2"><span style="color:grey">Figure 5, Gain (%) of Stores</span></font>
+
+The dots outside the bar mean they are smaller than (2.5Q1-1.5Q3) or greater than (2.5Q3-1.5Q3), which suppose to represent 99.3% of data in the normal distribution. The gain in percentage (figure 5) has fewer outliers than the gain in pounds (figure 4), which shows again that the gain in percentage is better showing the data. 
+
+However, even there are many outliers in figure 4, it is still possible to have a huge gain especially for only one period for this dataset. Moreover, the amount of gain seems to be still reasonable, not far away from other observations, and still has some information. Therefore, we should just keep these outliers in the analysis.
+
+Next, we check the data density and data distribution.
+
+![](gain density.png)
+
+<font size="2"><span style="color:grey">Figure 6, The Density of Gain (£)</span></font>
+
+![](gain density_percent.png)
+
+<font size="2"><span style="color:grey">Figure 7, The Density of Gain (%)</span></font>
+
+Although both of figure 6 and 7 are not a perfect normal distribution, the curves of data with and without trial are fair enough that the data looks pretty close to the normal distribution.
+
+After checking the normal distribution, we then do the $t$-test with NHST to check whether the mean gain is significantly greater than 0. We set $H_0$ as the mean gain is exactly 0, $H_1$ as the mean gain is not 0, and the significant level is 5%.
+
+According to the result of $t$-test, the mean sales gain is significantly larger for stores with new layout and signage, Welch $t(483)=5.73$, $p<.0001$, with a difference of 408,804 pounds; the mean sales gain is significantly larger for stores with new layout and signage, Welch $t(487)=3.25$, $p<.01$, with a difference of 1.31%.
+
+After we see that the mean gains of sales both in GBP and in percentage reject $H_0$ and are significantly greater than 0, we then estimate the gain.
+
+![](gain differenct.png)
+
+<font size="2"><span style="color:grey">Figure 8, Gain Difference (£)</span></font>
+
+The mean gain without the new store layout and signage is 18,089 pounds, 95% CI [-78,951-115,128].
+The mean gain with the new store layout and signage is 426,893 pounds, 95% CI [327,304-526,482]
+There is 408,804 extra gain expected, 95% CI[269,755-547,853.2], when the new store layout and signage conducted.
+
+![](gain difference_percent.png)
+
+<font size="2"><span style="color:grey">Figure 9, Gain Difference (%)</span></font>
+
+The mean gain in percentage without the new store layout and signage is 0.1%, 95% CI [-0.45%-0.65%].
+The mean gain in percentage with the new store layout and signage is 1.42%, 95% CI [0.85%-2%].
+There is 1.31% extra gain expected, 95% CI[0.53%-2.1%], when the new store layout and signage.
+
+
+### III. Conclusions
+Based on the result of $t$-test and the estimation, the new store layout and signage indeed changed the average sales with 408,804 extra gain (95% CI[269,755-547,853.2]) or 1.31% extra gain (95% CI[0.53%-2.1%]).
+
+We can see that the sales scales vary according to many factors of the stores, making us harder to estimate the precise change for different sale scales stores. Therefore, I prefer using percentage rather than GBP to estimate and apply the effect of the trials on sales to all stores.
+
+---
+
+# Question 2 Section 1
+
+## Outlet Types
+
+### I. Introduction & Research Method
+First, we discuss whether the different outlet types along with trial affect the sales. We will also take a look at data distribution, do the $t$-test, build a linear model, evaluate the result, and finally use the ANOVA to see whether adding outlet types as a predictor improve the model.
+
+### II. Results
+First, we plot the data across outlet types and trial to see the data distribution.
+
+![](S2_sales frequency_outlet.png)
+
+<font size="2"><span style="color:grey">Figure 10, The Frequency of Sales (£)</span></font>
+
+The amount of sales in superstores tends to be larger than the number of sales in city centre convenience stores and community convenience stores, which also confirms the concern of using GBP to examine the change in Question 1. For both convenience stores, the data seems to be normal distribution and there are no outliers. For the superstores, the data distribution seems to be flatted, but there is no obvious outlier as well.
+
+Next, we plot the gain in percentage to eliminate the effect of sales scales across different outlet types.
+
+![](S2_gain frequency_outlet_percent.png)
+
+<font size="2"><span style="color:grey">Figure 11, The Frequency of Gain (%)</span></font>
+
+We can briefly see that most of the city centre convenience stores with trial reduced the sales, but other 2 types increased. There are no obvious outliers in this plot. Therefore, we use boxplot to check again whether there is an error in the dataset.
+
+![](S2_outliers_outlet.png)
+
+<font size="2"><span style="color:grey">Figure 12, Boxplot For the Gain in Each Store Type</span></font>
+
+This figure shows the inference above that the city centre convenience stores with trial reduced the sales, but other 2 types increased. There are only 2 outliers, one in the city centre convenience and the other in the superstore, showing in this plot, but as Question 1, it might not be an issue to keep this data to analyse.
+
+We, then, check the density to see whether the data fits the normal distribution.
+
+![](S2_gain density_outlet_percent.png)
+
+<font size="2"><span style="color:grey">Figure 13, The Density of Gain (%)</span></font>
+
+Among these 3 outlet types, the data looks pretty close to a normal distribution by trial. Although they are not a perfect normal distribution, the sample size is small enough to tolerate the small deviation. 
+
+
+Finally, we use $t$-test and ANOVA to see the effect of outlet types. We assume $H_0$ as the mean gain is exactly 0, $H_1$ as the mean gain is not 0, and the significant level is 5%.
+
+![](S2_gain difference_outlet.png)
+
+<font size="2"><span style="color:grey">Figure 14, Difference in Gain (%) Across 3 Store Types</span></font>
+
+
+For city-centre convenience:
+
+The mean gain is significantly smaller for stores with the new layout and signage, Welch $t(153)=6.95$, $p<.00001$, which rejects the null hypothesis.
+
+The mean gain for stores not in the trial is -0.09%, 95% CI [-0.91%-0.72%].
+The mean gain for stores in the trial is -4.49%, 95% CI [-5.39%--3.59%].
+There is -4.39% extra gain expected 95%, CI[-6.16%--2.63%], after the store is introduced the new layout.
+
+
+For community convenience:
+
+The mean sales gain is significantly larger for stores with new layout and signage, Welch $t(265)=7.28$, $p<.00001$, which rejects the null hypothesis.
+
+The mean gain for stores not in the trial is 0.17%, 95% CI [-0.49%-0.84%].
+The mean gain for stores in the trial is 3.66%, 95% CI [3%-4.32%]. 
+There is 3.49% extra gain expected, 95% CI[2.13%-4.85%], after the store is introduced the new layout.
+
+
+For superstore:
+
+The mean sales gain is significantly larger for stores with new layout and signage, Welch $t(106)=4.86$, $p<.00001$, with a difference of 3.48%.
+
+The mean gain for stores not in the trial is 0.25%, 95% CI [-0.8%-1.3%].
+The mean gain for stores in the trial is 3.74%, 95% CI [2.69%-4.78%]. 
+There is 3.48% extra gain expected, 95% CI[1.33%-5.64%], after the store is introduced the new layout.
+
+
+According to the result of ANOVA, adding outlet type as a predictor to the model significantly improves the fit $F(4,534)=57.5, p < .0001$.
+
+However, predictions differ very little between the model with and without outlet type. Without outlet type as a covariate, $R^2=.308$. With outlet type as a covariate $R^2=.315$. Although the improvement in fit with the inclusion of outlet type is significant, the improvement is small.
+
+
+### III. Conclusions
+Though the effect of outlet types is small, it indeed affects the sales that the trial seems to reduce the sales of city centre convenience store, but increase the other 2 types.
+
+## Staff Turnover Rate
+
+### I. Introduction & Research Method
+We will do similar steps like outlet type to staff turnover rate to check whether adding staff turnover as a predictor improves the model.
+
+### II. Results
+Firstly, we take a look at the correlation between staff turnover rate and gain (%).
+
+![](S2_data distribution_staff.png)
+
+<font size="2"><span style="color:grey">Figure 15, Data Distribution Between Gain (%) And Staff Turnover Rate (%)</span></font>
+
+It seems to be 0 correlation and no serious outliers in the graph.
+
+Next, we add staff turnover rate into the linear model and use ANOVA to evaluate the result.
+
+For the one-way ANOVA, there is no significant different to 0 from staff turnover rate to gain in percentage, with $F(1,537)=0.129, p > 0.72$.
+
+For the two-model ANOVA, adding staff turnover rate as a predictor into the model does not significantly improve the fit, with $F(1,537)=0.129, p > 0.72$.
+
+### III. Conclusions
+According to one-way ANOVA and two-model ANOVA, the staff turnover rate is not able to affect the sales in this scenario.
+
+---
+
+# Question 1 Section 2
+### 1. Data Understanding
+```{r}
+# Use Wes Anderson color palettes
+require(wesanderson)
+# Load the data
+data <- read.csv("sales_data.csv")
+# See the data type of each variables in the data
+str(data)
+# Check whether there is missing value
+summary(is.na(data))
+```
+
+### 2. Data Prepartion
+```{r}
+# Create a new column to store the gain, the gap between sales_1 and sales_2
+data <- data %>% mutate(gain=sales_2-sales_1)
+# Add another new column to transform the gain into percentage
+data <- data %>% mutate(gain_percent=(gain/sales_1)*100)
+# Store the data in a new dataset to conduct further analysis
+data_long<-data
+# Change the name of the columns to make the wide format become long format later
+colnames(data_long)[3]<-"before"
+colnames(data_long)[4]<-"after"
+# Transform the wide format to long format for further analysis
+data_long <- gather(data_long,time,amount,before,after)
+data_long$time <- as.factor(data_long$time)
+```
+
+```{r}
+# See the statistical data for the gain
+summary(data_long$gain)
+data_long%>%group_by(intrial)%>%dplyr::summarise(mean=mean(gain),frequency=n(),CI_low=CI(gain)[3],CI_high=CI(gain)[1])
+
+# See the statistical data for gain in percentage
+summary(data_long$gain_percent)
+data_long%>%group_by(intrial)%>%dplyr::summarise(mean=mean(gain_percent),frequency=n(),CI_low=CI(gain_percent)[3],CI_high=CI(gain_percent)[1])
+```
+
+#### Data Distribution
+```{r}
+# To keep the result in decimal
+options(scipen=999)
+
+# Create some label vectors to change the label name later
+time.labs <- c("After","Before")
+names(time.labs) <- c("after","before")
+intrial.labs <- c("No","Yes")
+names(intrial.labs) <- c("FALSE","TRUE")
+intrial.both.labs <- c("Trial: No","Trial: Yes")
+names(intrial.both.labs) <- c("FALSE","TRUE")
+outlettype.labs <- c("City Centre Convenience","Community Convenience","Superstore")
+names(outlettype.labs) <- c("city_centre_convenience","community_convenience","superstore")
+
+# Plot the distribution of sales amount before and after the trial
+ggplot(data=data,aes(x=sales_1, y=sales_2, fill=intrial, col=intrial))+
+  geom_point(alpha=0.3)+
+  geom_smooth(method="lm")+
+  scale_fill_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+
+  scale_color_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+
+  theme_bw()+
+  labs(title = "The Data Distribution of Sales (£)", x = "Sales Before (£)", y = "Sales After (£)")+
+  theme(plot.title = element_text(size = 14, face = 'bold'))
+
+ggplot(data=data_long,aes(amount,))+
+  geom_histogram(aes(x=amount,fill=intrial),binwidth = 2000000,position="identity",alpha=0.2)+
+  geom_vline(mapping=aes(xintercept=mean(amount)), col="green")+
+  scale_fill_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+
+  scale_color_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+
+  theme_bw()+
+  labs(title = "The Frequency of Sales (£)", x = "Sales (£)", y = "Frequency", caption = "The bright green lines show the mean of sales across trial. \n The mean sales of the period before is 14144900; the mean sales of the period after is 14362091.")+
+  theme(plot.title = element_text(size = 14, face = 'bold'), plot.caption = element_text(size = 10, hjust = 0, face= "italic"))+
+  facet_grid(time~., labeller = labeller(time = time.labs))
+```
+
+```{r}
+# Save the data for the figure later
+mean_no_trial <- data%>%filter(intrial=="FALSE")
+mean_no_trial <- mean(mean_no_trial$gain)
+mean_trial <- data%>%filter(intrial=="TRUE")
+mean_trial <- mean(mean_trial$gain)
+
+
+# Plot for distribution of gain of both with and without a new layout and signage design
+ggplot(data=data,aes(gain,))+
+  geom_histogram(aes(x=gain,fill=intrial),binwidth = 100000,position="identity",alpha=0.3)+
+  geom_vline(mapping=aes(xintercept=mean_no_trial), col="#ff6347")+
+  geom_vline(mapping=aes(xintercept=mean_trial), col="#228b22")+
+  scale_fill_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+
+  scale_color_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+
+  theme_minimal()+
+  labs(x="Gain (£)", y="Frequency", title="The Frequency of Gain (£)", caption = "The red straight line shows the mean gain of data without trial, which is 18088.69 pound.\nThe green straight line shows the mean gain of data with trial, which is 426892.81 pound.")+
+  theme(plot.title = element_text(size = 14, face = 'bold'), plot.caption = element_text(size = 10, hjust = 0, face= "italic"))
+```
+
+```{r}
+# Save the data for the figure later
+mean_no_trial_per <- data%>%filter(intrial=="FALSE")
+mean_no_trial_per <- mean(mean_no_trial_per$gain_percent)
+mean_trial_per <- data%>%filter(intrial=="TRUE")
+mean_trial_per <- mean(mean_trial_per$gain_percent)
+
+# Plot for distribution of gain in percentage both with and without a new layout and signage design
+ggplot(data=data,aes(gain_percent,))+
+  geom_histogram(aes(x=gain_percent,fill=intrial),binwidth = 0.5,position="identity",alpha=0.3)+
+  geom_vline(mapping=aes(xintercept=mean_no_trial_per), col="#ff6347")+
+  geom_vline(mapping=aes(xintercept=mean_trial_per), col="#228b22")+
+  scale_fill_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+
+  scale_color_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+
+  theme_minimal()+
+  labs(x="Gain (%)", y="Frequency", title="The Frequency of Gain (%)", caption = "The red straight line shows the mean gain of data without trial in percentage, which is 0.1%.\nThe green straight line shows the mean gain of data with trial in percentage, which is 1.42%.")+
+  theme(plot.title = element_text(size = 14, face = 'bold'), plot.caption = element_text(size = 10, hjust = 0, face= "italic"))
+```
+
+#### Check Outliers
+
+```{r}
+# Make a boxplot to see the distribution and outliers for gain
+ggplot(data=data)+
+  geom_boxplot(aes(y=gain,x=intrial,fill=intrial))+
+  scale_fill_manual(values = wes_palette(n = 2, name = "Darjeeling1"), name="Trial",labels=c("No","Yes"))+
+  theme_light()+
+  labs(x="Trial", y="Gain (£)", title="Gain (£) of Stores")+
+  theme(plot.title = element_text(size = 14, face = 'bold'))+
+  scale_x_discrete(labels = c("No", "Yes"))
+```
+
+```{r}
+# Make a boxplot to see the distribution and outliers for gain in percentage
+ggplot(data=data)+
+  geom_boxplot(aes(y=gain_percent,x=intrial,fill=intrial))+
+  scale_fill_manual(values = wes_palette(n = 2, name = "Darjeeling1"), name="Trial",labels=c("No","Yes"))+
+  theme_light()+
+  labs(x="Trial", y="Gain (%)", title="Gain (%) of Stores")+
+  theme(plot.title = element_text(size = 14, face = 'bold'))+
+  scale_x_discrete(labels = c("No", "Yes"))
+```
+
+#### $t$-test
+
+```{r}
+# Summary for data in pound
+(intrial.summary <- data %>% group_by(intrial) %>% dplyr::summarise(mean_gain=mean(gain), sd_gain=sd(gain, na.rm=TRUE), N_gain=n()))
+# Summary for data in percentage
+(intrial.summary.percent <- data %>% group_by(intrial) %>% dplyr::summarise(mean_gain_percent=mean(gain_percent), sd_gain_percent=sd(gain_percent, na.rm=TRUE), N_gain=n()))
+```
+
+```{r}
+# Difference in gain 
+intrial.summary %>% dplyr::summarise(diff_gain=diff(mean_gain))
+intrial.summary.percent %>% dplyr::summarise(diff_gain_percent=diff(mean_gain_percent))
+```
+
+```{r}
+# Gain pooling intrial together
+(data.summary <- data %>% dplyr::summarise(mean_gain=mean(gain), sd_gain=sd(gain, na.rm=TRUE), N_gain=n()))
+(data.summary.percent <- data %>% dplyr::summarise(mean_gain_percent=mean(gain_percent), sd_gain_percent=sd(gain_percent, na.rm=TRUE), N_gain=n()))
+
+colours <- scales::hue_pal()(2)
+# Plot the data distribution
+ggplot(data, aes(gain, fill=intrial)) +
+  geom_histogram(aes(y=..density..),binwidth=100000,position="identity", alpha=0.5) + 
+  stat_function(fun=function(x) {dnorm(x, mean=intrial.summary$mean_gain[1], sd=intrial.summary$sd_gain[1])}, col=colours[1]) + 
+  stat_function(fun=function(x) {dnorm(x, mean=intrial.summary$mean_gain[2], sd=intrial.summary$sd_gain[2])}, col=colours[2]) + 
+  stat_function(fun=function(x) {dnorm(x, mean=data.summary$mean_gain, sd=data.summary$sd_gain)}) + 
+  scale_fill_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+
+  scale_color_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+
+  theme_minimal()+
+  labs(x="Gain (£)", y="Density", title="The Density of Gain (£)")+
+  theme(plot.title = element_text(size = 14, face = 'bold'))
+
+ggplot(data, aes(gain_percent, fill=intrial)) +
+  geom_histogram(aes(y=..density..),binwidth=0.75,position="identity", alpha=0.5) + 
+  stat_function(fun=function(x) {dnorm(x, mean=intrial.summary.percent$mean_gain_percent[1], sd=intrial.summary.percent$sd_gain_percent[1])}, col=colours[1]) + 
+  stat_function(fun=function(x) {dnorm(x, mean=intrial.summary.percent$mean_gain_percent[2], sd=intrial.summary.percent$sd_gain_percent[2])}, col=colours[2]) + 
+  stat_function(fun=function(x) {dnorm(x, mean=data.summary.percent$mean_gain_percent, sd=data.summary.percent$sd_gain_percent)}) + 
+  scale_fill_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+
+  scale_color_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+
+  theme_minimal()+
+  labs(x="Gain (%)", y="Density", title="The Density of Gain (%)")+
+  theme(plot.title = element_text(size = 14, face = 'bold'))
+```
+
+```{r}
+# t-test
+t.test(gain~intrial, data=data)
+t.test(gain_percent~intrial, data=data)
+```
+
+### 3. Modeling
+```{r}
+# Make the Linear Model
+data.lm <- lm(gain~intrial,data=data)
+data.per.lm <- lm(gain_percent~intrial,data=data)
+```
+
+### 4. Evaluation
+```{r}
+# See the result of the model
+summary(data.lm)
+anova(data.lm)
+(data.lm.emm <- emmeans(data.lm,~intrial))
+(data.lm.emm.contrast <- confint(pairs(data.lm.emm)))
+cbind(coefficient=coef(data.lm), confint(data.lm))
+
+summary(data.per.lm)
+anova(data.per.lm)
+(data.per.lm.emm <- emmeans(data.per.lm,~intrial))
+(data.per.lm.emm.contrast <- confint(pairs(data.per.lm.emm)))
+cbind(coefficient=coef(data.per.lm), confint(data.per.lm))
+```
+
+```{r}
+# Plot the gain both with and without intrial, and also the gap between both of them
+grid.arrange(
+  ggplot(summary(data.lm.emm), aes(x=intrial, y=emmean, ymin=lower.CL, ymax=upper.CL)) +
+    geom_point() +
+    geom_linerange() +
+    ylim(-100000,550000)+
+    labs(y="Sales Gain (£)", x="Trial", subtitle="Error bars are 95% CIs", title="Gains (£) of the Stores") +
+    geom_hline(yintercept=0, lty=2)+
+    theme_light()+
+    scale_x_discrete(limits = c("TRUE","FALSE"), labels = c("Yes", "No"))+
+    theme(plot.title = element_text(size = 14, face = 'bold')),
+  
+  ggplot(data.lm.emm.contrast, aes(x=contrast, y=-estimate, ymin=-lower.CL, ymax=-upper.CL)) +
+    geom_point() +
+    geom_linerange() +
+    ylim(-100000,550000)+
+    labs(y="Difference in Sales Gain (£)", x="Contrast", subtitle="Error bars are 95% CIs", title="Difference in Gains (£)") +
+    geom_hline(yintercept=0, lty=2)+
+    scale_x_discrete(labels = "Yes-No (Trial)")+
+    theme_light()+
+    theme(plot.title = element_text(size = 14, face = 'bold')),
+  
+  ncol=2
+)
+```
+
+```{r}
+# Plot the gain in percentage both with and without intrial, and also the gap between both of them
+grid.arrange(
+  ggplot(summary(data.per.lm.emm), aes(x=intrial, y=emmean, ymin=lower.CL, ymax=upper.CL)) +
+    geom_point() +
+    geom_linerange() +
+    ylim(-1,2.5)+
+    labs(y="Sales Gain (%)", x="Trial", subtitle="Error bars are 95% CIs", title="Gains (%) of the Stores") +
+    geom_hline(yintercept=0, lty=2)+
+    theme_light()+
+    scale_x_discrete(limits = c("TRUE","FALSE"), labels = c("Yes", "No"))+
+    theme(plot.title = element_text(size = 14, face = 'bold')),
+  
+  ggplot(data.per.lm.emm.contrast, aes(x=contrast, y=-estimate, ymin=-lower.CL, ymax=-upper.CL)) +
+    geom_point() +
+    geom_linerange() +
+    ylim(-1,2.5)+
+    labs(y="Difference in Sales Gain (%)", x="Contrast (Yes-No)", subtitle="Error bars are 95% CIs", title="Difference in Gains (%)") +
+    geom_hline(yintercept=0, lty=2)+
+    scale_x_discrete(labels = "Trial")+
+    theme_light()+
+    theme(plot.title = element_text(size = 14, face = 'bold')),
+  
+  ncol=2
+)
+```
+
+---
+
+# Question 2 Section 2
+
+## Outlettype
+### 1. Data Preparation
+```{r}
+# See the statistical data
+data_long%>%group_by(outlettype,intrial)%>%dplyr::summarise(mean=mean(gain_percent),frequency=n(),CI_low=CI(gain_percent)[3],CI_high=CI(gain_percent)[1])
+```
+
+#### Data Distribution
+```{r}
+# Plot the distribution of sales amount before and after the new layout and design across all 3 business type
+ggplot(data=data,aes(x=sales_1, y=sales_2, fill=intrial, col=intrial))+
+  geom_point(alpha=0.3)+
+  geom_smooth(method="lm")+
+  facet_grid(outlettype ~ ., labeller = labeller(outlettype=outlettype.labs))+
+  scale_fill_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+
+  scale_color_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+
+  theme_bw()+
+  labs(title = "The Data Distribution of Sales (£) Across Outlet Type", x = "Sales Before (£)", y = "Sales After (£)")+
+  theme(plot.title = element_text(size = 14, face = 'bold'))
+
+
+ggplot(data=data_long,aes(amount,))+
+  geom_histogram(aes(x=amount,fill=time),binwidth = 1000000,position="identity",alpha=0.5)+
+  facet_grid(outlettype ~ intrial, labeller = labeller(intrial=intrial.both.labs,outlettype=outlettype.labs))+
+  scale_fill_manual(values = wes_palette(n = 2, name = "Darjeeling1"), name = "Reporting Period", labels = c("Sales 1","Sales 2"))+
+  scale_color_manual(values = wes_palette(n = 2, name = "Darjeeling1"), name = "Reporting Period", labels = c("Sales 1","Sales 2"))+
+  theme_bw()+
+  labs(x="Sales Amount (£)", y="Frequency", title="The Frequency of Sales (£)")+
+  theme(plot.title = element_text(size = 14, face = 'bold'))
+```
+
+```{r}
+# Plot the gain among 3 different outlet types
+ggplot(data=data,aes(gain,))+
+  geom_histogram(aes(x=gain,fill=intrial),binwidth = 100000,position="identity",alpha=0.5)+
+  geom_vline(xintercept=0, lty=2, col="dark red")+
+  scale_fill_manual(values = wes_palette(n = 2, name = "Darjeeling1"), name="Trial",labels=c("No","Yes"))+
+  scale_color_manual(values = wes_palette(n = 2, name = "Darjeeling1"), name="Trial",labels=c("No","Yes"))+
+  theme_bw()+
+  facet_grid(outlettype~., labeller = labeller(outlettype=outlettype.labs))+
+  labs(x="Gain (£)", y="Frequency", title="The Frequency of Gain (£)")+
+  theme(plot.title = element_text(size = 14, face = 'bold'))
+
+ggplot(data=data,aes(gain_percent,))+
+  geom_histogram(aes(x=gain_percent,fill=intrial),binwidth = 0.5,position="identity",alpha=0.5)+
+  geom_vline(xintercept=0, lty=2, col="dark red")+
+  scale_fill_manual(values = wes_palette(n = 2, name = "Darjeeling1"), name="Trial",labels=c("No","Yes"))+
+  scale_color_manual(values = wes_palette(n = 2, name = "Darjeeling1"), name="Trial",labels=c("No","Yes"))+
+  theme_bw()+
+  facet_grid(outlettype~., labeller = labeller(outlettype=outlettype.labs))+
+  labs(x="Gain (%)", y="Frequency", title="The Frequency of Gain (%)")+
+  theme(plot.title = element_text(size = 14, face = 'bold'))
+```
+
+#### Check Outliers
+
+```{r}
+# Plot the boxplot to see the distribution and the outliers
+ggplot(data=data,aes(outlettype, gain_percent))+
+  geom_boxplot(aes(fill = intrial))+
+  scale_fill_manual(values = wes_palette(n = 2, name = "Darjeeling1"), name="Trial",labels=c("No","Yes"))+
+  theme_light()+
+  labs(x="Store Type", y="Gain (%)", title="Boxplot For the Gain In Each Store Type")+
+  geom_hline(yintercept=0, lty=2)+
+  theme(plot.title = element_text(size = 14, face = 'bold'))+
+  scale_x_discrete(labels = c("City Centre Convenience","Community Convenience","Superstore"))
+```
+
+#### $t$-test
+
+```{r}
+# Summary for data in pound
+(intrial.outlet.summary.percent <- data %>% group_by(intrial,outlettype) %>% dplyr::summarise(mean_gain=mean(gain_percent), sd_gain=sd(gain_percent, na.rm=TRUE), N_gain=n()))
+```
+
+```{r}
+# Difference in gain by outlettype
+(intrial.outlet.summary.percent %>% group_by(outlettype) %>% dplyr::summarise(diff_gain_percent=diff(mean_gain)))
+```
+
+```{r}
+data.city <- data %>% filter(outlettype=="city_centre_convenience")
+data.community <- data %>% filter(outlettype=="community_convenience")
+data.super <- data %>% filter(outlettype=="superstore")
+
+data.city.summary <- data %>% filter(outlettype=="city_centre_convenience") %>% dplyr::summarise(mean_gain=mean(gain_percent), sd_gain=sd(gain_percent, na.rm=TRUE), N_gain=n())
+data.community.summary <- data %>% filter(outlettype=="community_convenience") %>% dplyr::summarise(mean_gain=mean(gain_percent), sd_gain=sd(gain_percent, na.rm=TRUE), N_gain=n())
+data.super.summary <- data %>% filter(outlettype=="superstore") %>% dplyr::summarise(mean_gain=mean(gain_percent), sd_gain=sd(gain_percent, na.rm=TRUE), N_gain=n())
+
+# Plot the data distribution
+plot.city <- ggplot(data.city, aes(gain_percent, fill=intrial)) +
+  geom_histogram(aes(y=..density..),binwidth=0.75,position="identity", alpha=0.5) + 
+  stat_function(fun=function(x) {dnorm(x, mean=intrial.outlet.summary.percent$mean_gain[1], sd=intrial.outlet.summary.percent$sd_gain[1])}, col=colours[1]) + 
+  stat_function(fun=function(x) {dnorm(x, mean=intrial.outlet.summary.percent$mean_gain[4], sd=intrial.outlet.summary.percent$sd_gain[4])}, col=colours[2]) + 
+  stat_function(fun=function(x) {dnorm(x, mean=data.city.summary$mean_gain, sd=data.city.summary$sd_gain)}) +
+  scale_fill_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+
+  scale_color_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+
+  xlim(c(-15,15))+
+  ylim(c(0,0.25))+
+  labs(title="City Centre Convenience")+
+  ylab("")+
+  theme(axis.title.x = element_blank(),plot.title=element_text(color="dark grey"))
+
+plot.community <- ggplot(data.community, aes(gain_percent, fill=intrial)) +
+  geom_histogram(aes(y=..density..),binwidth=0.75,position="identity", alpha=0.5) + 
+  stat_function(fun=function(x) {dnorm(x, mean=intrial.outlet.summary.percent$mean_gain[2], sd=intrial.outlet.summary.percent$sd_gain[2])}, col=colours[1]) + 
+  stat_function(fun=function(x) {dnorm(x, mean=intrial.outlet.summary.percent$mean_gain[5], sd=intrial.outlet.summary.percent$sd_gain[5])}, col=colours[2]) + 
+  stat_function(fun=function(x) {dnorm(x, mean=data.community.summary$mean_gain, sd=data.community.summary$sd_gain)}) +
+  scale_fill_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+
+  scale_color_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+
+  xlim(c(-15,15))+
+  ylim(c(0,0.25))+
+  labs(title="Community Convenience")+
+  theme(axis.title.x = element_blank(),plot.title=element_text(color="dark grey"))+  
+  labs(y="Density")
+
+plot.super <- ggplot(data.super, aes(gain_percent, fill=intrial)) +
+  geom_histogram(aes(y=..density..),binwidth=0.75,position="identity", alpha=0.5) + 
+  stat_function(fun=function(x) {dnorm(x, mean=intrial.outlet.summary.percent$mean_gain[3], sd=intrial.outlet.summary.percent$sd_gain[3])}, col=colours[1]) + 
+  stat_function(fun=function(x) {dnorm(x, mean=intrial.outlet.summary.percent$mean_gain[6], sd=intrial.outlet.summary.percent$sd_gain[6])}, col=colours[2]) + 
+  stat_function(fun=function(x) {dnorm(x, mean=data.super.summary$mean_gain, sd=data.super.summary$sd_gain)}) +
+  scale_fill_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+
+  scale_color_manual(values = wes_palette(n = 2, name = "Darjeeling1"),name = "Trial", labels = c("No","Yes"))+  
+  xlim(c(-15,15))+
+  ylim(c(0,0.25))+
+  labs(title="Superstore",x="Gain (%)")+
+  theme(plot.title=element_text(color="dark grey"))+
+  ylab("")
+
+grid.arrange(plot.city,plot.community,plot.super,nrow=3,top=textGrob("The Density of Gain (%)",gp=gpar(fontsize=14,fontface="bold")))
+```
+
+```{r}
+# t-test for city centre 
+t.test(gain_percent~intrial, data=data.city)
+t.test(gain_percent~intrial, data=data.community)
+t.test(gain_percent~intrial, data=data.super)
+```
+
+### 2. Modeling
+```{r}
+# Make the Linear Regression Model for gain_percent~intrial*outlettype
+data.with.type.lm <- lm(gain_percent~intrial*outlettype,data=data)
+```
+
+### 3. Evaluation
+```{r}
+# See the result of the model
+anova(data.with.type.lm)
+(data.with.type.lm.emm <- emmeans(data.with.type.lm,~intrial*outlettype))
+(data.with.type.lm.emm.contrast <- confint(pairs(data.with.type.lm.emm)))
+cbind(coefficient=coef(data.with.type.lm), confint(data.with.type.lm))
+```
+
+```{r}
+# See the gap of gain between having or not the new layout and design in percentage among 3 different outlet types
+data_for_plot_type <- data.with.type.lm.emm.contrast[c(1,10,15),]
+ggplot(data_for_plot_type, aes(x=contrast, y=-estimate, ymin=-lower.CL, ymax=-upper.CL)) +
+    geom_point() +
+    geom_linerange() +
+    labs(y="Difference in Sales Gain (probability)", x="Contrast", subtitle="Error bars are 95% CIs", title="Difference in Gains") +
+    geom_hline(yintercept=0, lty=2)+
+    theme_light()+
+    labs(y="Difference in Sales Gain (%)", x="Contrast (Yes-No)", subtitle="Error bars are 95% CIs", title="Difference In Gains (%) Across 3 Store Types") +
+    scale_x_discrete(labels = c("City Centre Convenience","Community Convenience","Superstore"))+
+    theme(plot.title = element_text(size = 14, face = 'bold'))+
+    coord_flip()
+```
+
+```{r}
+# See whether adding the outlettype into model can improve the prediction result
+summary(data.with.type.lm)
+anova(data.per.lm,data.with.type.lm)
+```
+
+---
+
+## Turnover
+### 1. Data Preparation
+```{r}
+# See the statistical data
+data_long%>%group_by(intrial)%>%dplyr::summarise(mean=mean(staff_turnover),frequency=n(),CI_low=CI(staff_turnover)[3],CI_high=CI(staff_turnover)[1])
+```
+
+#### Data Distribution
+
+```{r}
+# See the plot for gain in percentage
+ggplot(data=data,aes(x=staff_turnover*100,y=gain_percent,color=intrial,fill=intrial))+
+  geom_point(alpha=0.2)+
+  geom_smooth(method="lm")+
+  scale_fill_manual(values = wes_palette(n = 2, name = "Darjeeling1"), name="Trial",labels=c("No","Yes"))+
+  scale_color_manual(values = wes_palette(n = 2, name = "Darjeeling1"), name="Trial",labels=c("No","Yes"))+
+  theme_minimal()+
+  labs(y="Gain (%)", x="Staff Turnover Rate (%)", title="Data Distribution Between Gain (%) And Staff Turnover Rate (%)", caption = "The red and green lines are the trendlines between gain (%) and staff turnover rate (%) for stores without trial and with trial respectively.") +
+  theme(plot.title = element_text(size = 14, face = 'bold'), plot.caption = element_text(size = 10, hjust = 0, face= "italic"))
+```
+
+### 2. Modeling
+```{r}
+# Make the Linear Regression Model for gain_percent~intrial+staff_turnover
+data.with.staff.lm <- lm(gain_percent~intrial+staff_turnover,data=data)
+```
+
+### 3. Evaluation
+```{r}
+# See the result of the model
+summary(data.with.staff.lm)
+anova(data.with.staff.lm)
+```
+
+```{r}
+# See whether adding the outlettype into model can improve the prediction result
+anova(data.per.lm,data.with.staff.lm)
+```

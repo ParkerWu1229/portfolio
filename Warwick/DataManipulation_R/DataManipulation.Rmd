@@ -1,0 +1,116 @@
+---
+title: "Data Management - Part B"
+author: "GROUP_12"
+output:
+  word_document: default
+  html_document: default
+editor_options: 
+  chunk_output_type: console
+---
+## Set Up Environment
+
+```{r setup,attr.source='.numberLines'}
+#set up the environment
+library("dplyr")
+library("tidyr")
+library("tidyverse")
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## First Step: Get the Directory of Each .xlsx
+
+```{r,attr.source='.numberLines'}
+# get the directory of each .xlsx of each country
+dic<-list.files("group_assignment",recursive = TRUE)
+
+# delete the unwanted .xlsx in directory
+dic1<-dic[-1]
+
+# prepare an empty list to save the directory later
+dic2 <- list()
+
+# set count to 0 for running the for loop to select the number of the list later
+count<-0
+
+# combine the root directory and .xlsx directory into the list
+for (f in 1:length(dic1)){
+  # every time one new directory is dene, count+1 to move to next space of list
+  count<-count+1
+  # select the space of list and put the combined string in it
+  dic2[count]<-list(paste0("group_assignment/",dic1[f]))
+}
+```
+
+## Second Step: Import, Clean, and Combine Each .xlsx
+
+```{r message = FALSE,attr.source='.numberLines'}
+# create an empty data frame for combining all clean .xlsx in for loop later
+df <- data.frame()
+
+# set count2 to 0 for running the for loop to read the .xlsx in order later
+count2<-0
+
+# use the for loop to deal with .xlsx one by one
+for (f in 1:length(dic2)) {
+  # at the begining, increase one in count2 to specify which number of .xlsx we're reading in the list dic2
+  count2<-count2+1
+  # use read_xlsx function to read the .xlsx document, and also use paste function to transfer the list into string.
+  # we skip firt row in each .xlsx to avoid loading the url data, which is useless in this part
+  data <- readxl::read_xlsx(paste(dic2[count2]),skip=1)
+  # save the country data into a new variable before we clean the redundant data
+  country <- data$...3[3]
+  # same purpose as country to flow
+  flow <- data$...3[1]
+  # clean the redundant data in the file
+  data <- data[-c(1:3,5,(nrow(data)-2):(nrow(data))),-2]
+  # save the first row of data into col.name.list to replcae the columns name later
+  col.name.list<-data[1,]
+  # replace the wrong columns name with first row of data, which is saved in the col.name.list
+  colnames(data)<-col.name.list
+  # remove the first row of data after changing it to columns name
+  data <- data[-1,]
+  # transform the wide file into long file
+  data_gather<-gather(data,"product","value",-"Product")%>%
+  # correct the name of year column
+      rename(year=Product)
+  # add a new column to put the country inside the table
+  data_gather$country<-country
+  # add a new column to put the flow inside the table
+  data_gather$flow<-flow
+  # put the clean and structured table into the data frame
+  df <- rbind(df,data_gather)
+}
+```
+
+## Third Step: Arrange and Finalise Data
+
+```{r,attr.source='.numberLines'}
+# rearrange columns
+data_final <- df[,c(4,1,5,2,3)]
+
+# change .. to NA
+data_final$value[which(data_final$value=="..")]<-NA
+
+# arrange the data as requirement
+data_final <- data_final%>%
+  arrange(country,flow,year)
+
+# show the final data
+print(data_final)
+```
+
+We keep the NA without omitting or replacing with 0 because we assume that removing NA results in removing some data, which is not a good thing for managing data, and that NA is different from 0. However, NA means there is no record for that product for that country in that year. Hence, when we count the rows of records, we will count without NA.
+
+```{r,attr.source='.numberLines'}
+# For the total number of records on the dataset without na
+row_number_without_na <- nrow(data_final%>%na.omit())
+print(row_number_without_na)
+
+# For the total number of records for each product across countries across years without na
+count_product_without_na <- data_final%>%
+  na.omit()%>%
+  group_by(product,country,year)%>%
+  summarise(n = n())%>%
+  arrange(desc(n))
+print(count_product_without_na)
+```

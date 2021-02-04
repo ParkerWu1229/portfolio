@@ -1,0 +1,957 @@
+---
+title: "AIP Assignment"
+author: "Group_12"
+date: "12/1/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#install.packages("plyr")
+#install.packages("GGally")
+#install.packages("FSelector")
+#install.packages("ElemStatLearn")
+#install.packages("mice")
+#install.packages("tree")
+#install.packages("CustomerScoringMetrics")
+#install.packages("party")
+#install.packages("partkit")
+#install.packages("splitstackshape")
+#install.packages("sampling")
+
+#library set up
+library(tidyverse) #For data checking and data plot
+library(plyr) # For data encoding
+library(caTools) # For data partitioning into training and test set
+library(ROSE) # For data balancing
+library(sampling)
+library(mice) 
+library(readr)
+library(GGally)
+library(FSelector) # For information gain calculation
+library(ElemStatLearn) 
+library(MASS) # For LDA Model
+library(dplyr)
+library(tree) # For decision tree
+library(caret) # For confusion matrix
+library(pROC) # For ROC chart
+library(e1071) # For SVM
+library(CustomerScoringMetrics) # For gain chart
+library(party) # For conditional tree
+library(partykit) # For conditional tree prediction
+library(splitstackshape) # For stratified sampling
+library(randomForest) # For random forest 
+```
+
+
+#1 Data Preparation
+
+```{r}
+# Load the dataset
+setwd("D://R files//Group Assignment")
+data_full <- read.csv("datafile_full.csv", stringsAsFactors = TRUE)
+```
+
+##1.1 Basic Data Cleaning
+```{r}
+# First generate a vector to store customers' ID
+ID_save_f <- data_full$ID_code
+# Delete ID_code 
+data_full$ID_code <- NULL
+```
+
+```{r}
+# Standardize data
+data_full_dup <- data_full
+target_temp_f <- data_full_dup$target
+data_full_dup$target <- NULL
+data_full_std <- apply(data_full_dup, 2, function(x){(x-min(x, na.rm = T))/(max(x, na.rm = T)-min(x, na.rm = T))})
+data_full_std <- as.data.frame(data_full_std)
+```
+
+##1.2 MICE -- To Replace NA 
+ 
+***Functions from "mice" package are applied in this step. Instead of directly being deleted, all the missing values are replaced by values autocomputed by mice(). ***
+
+```{r}
+# Use MICE to fill NA value
+data_done_full <- mice(data_full_std,m=1,maxit=1,meth='pmm',seed=10)
+
+# Choose the predicted value for NA to put it back to dataset
+data_model_full <- complete(data_done_full,1)
+
+# Check whether NA values still exist
+check_missing_full<-sapply(data_model_full, function(x) sum(is.na(x)))
+check_missing_full[check_missing_full>0]
+
+# Put target col back to data
+data_model_full$target <- target_temp_f
+```
+
+##1.3 Stratified Sampling & Data Partitioning
+```{r}
+# Stratified sample to data
+summary(data_model_full$target)
+size<-c(44981,5019)
+set.seed(10)
+data_model_full_half=strata(data_model_full,c("target"),size=size, method="srswor")
+half_data_model_full<- getdata(data_model_full,data_model_full_half)
+summary(half_data_model_full$target)
+half_data_model_full$ID_unit<-NULL
+half_data_model_full$Prob<-NULL
+half_data_model_full$Stratum<-NULL
+```
+
+```{r}
+# No encoding required as all variables in numerical type, not factor
+# Data partitioning into training and test sets
+# Generate a seed before sampling
+set.seed(10)
+
+# Generate split vector to partition the data into training and test sets with training ratio of 0.70
+half_split_full <- sample.split(half_data_model_full$target,SplitRatio = 0.7)
+
+# Generate the training and test sets by subsetting the data records from actual dataset
+half_training_full <- subset(half_data_model_full, half_split_full == TRUE)
+test <- subset(half_data_model_full, half_split_full == FALSE)
+```
+
+##1.4 Imbalance Problem
+```{r}
+# Check if the data is imbalanced
+prop.table(table(half_training_full$target))
+
+# Apply balancing technique with p=0.5
+training_under <- ovun.sample(target ~., data=half_training_full, method = "under", p=0.5, seed = 10)$data
+training_over <- ovun.sample(target ~., data=half_training_full, method = "over", p=0.5, seed = 10)$data
+training_both <- ovun.sample(target ~., data=half_training_full, method = "both", p=0.5, seed = 10)$data
+
+# Correct the data type of target variable and check the proportions 
+training_under$target<-as.factor(training_under$target)
+training_over$target<-as.factor(training_over$target)
+training_both$target<-as.factor(training_both$target)
+test$target <- as.factor(test$target)
+
+prop.table(table(training_under$target))
+prop.table(table(training_over$target))
+prop.table(table(training_both$target))
+```
+
+#2 Feature Selection -- Information Gain
+
+```{r}
+# Use function information.gain() to compute information gain values of the attributes
+attribute_weights_under <- information.gain(target ~ ., training_under)
+attribute_weights_over <- information.gain(target ~ ., training_over)
+attribute_weights_both <- information.gain(target ~ ., training_both)
+
+# Filter features where the information gain is not zero and calculate the number of those useful features
+nrow(filter(attribute_weights_under, attribute_weights_under$attr_importance > 0)) #87
+nrow(filter(attribute_weights_over, attribute_weights_over$attr_importance > 0)) #193
+nrow(filter(attribute_weights_both, attribute_weights_both$attr_importance > 0)) #175
+
+# Select attributes with high information gain at a specific cutoff (here take all attributes having IG >0)
+filtered_attributes_under <- cutoff.k(attribute_weights_under,sum(attribute_weights_under$attr_importance >0))
+filtered_attributes_over <- cutoff.k(attribute_weights_over,sum(attribute_weights_over$attr_importance >0))
+filtered_attributes_both <- cutoff.k(attribute_weights_both,sum(attribute_weights_both$attr_importance >0))
+
+# Show the top 6 filtered attributes
+head(filtered_attributes_under)
+head(filtered_attributes_over)
+head(filtered_attributes_both)
+```
+
+***Create datamodelling dataset for each sample, representing the subset of training with IG>0. So in some models which excludes feature selection procedure, we can use datamodelling_under/over/both dataset to create the models.***
+```{r}
+# Select a subset of the dataset by using filtered_attributes 
+datamodelling_under <- training_under[filtered_attributes_under]
+datamodelling_over <- training_over[filtered_attributes_over]
+datamodelling_both <- training_both[filtered_attributes_both]
+
+# Add target column to the filtered dataset for modelling
+datamodelling_under$target <- training_under$target
+datamodelling_over$target <- training_over$target
+datamodelling_both$target <- training_both$target
+```
+
+
+#3 Modelling & Prediction
+
+##3.1 Decision Tree
+
+***The feature selection procedure is included, so we use original training data to create models.***
+
+```{r}
+# Create decision tree model by using tree() function for each sample
+Dtree_under <- tree(target~., training_under)
+Dtree_over <- tree(target~., training_over)
+Dtree_both <- tree(target~., training_both)
+
+summary(Dtree_under)
+summary(Dtree_over)
+summary(Dtree_both)
+```
+
+```{r}
+# Predict the class of target in test set
+Dtree_under_pred <- predict(Dtree_under, test, type = "class")
+Dtree_over_pred <- predict(Dtree_over, test, type = "class")
+Dtree_both_pred <- predict(Dtree_both, test, type = "class")
+
+# Generate a column for decision tree prediction in test frame and add predictions obtained by decision tree to the columns
+test$Prediction_Dtree_under <- Dtree_under_pred
+test$Prediction_Dtree_over <- Dtree_over_pred
+test$Prediction_Dtree_both <- Dtree_both_pred
+
+# Create confusion matrix
+confusionMatrix(Dtree_under_pred, test$target, positive='1', mode = "prec_recall")
+confusionMatrix(Dtree_over_pred, test$target, positive='1', mode = "prec_recall")
+confusionMatrix(Dtree_both_pred, test$target, positive='1', mode = "prec_recall")
+```
+
+
+##3.2 Conditional Tree
+
+```{r}
+# Create conditional tree model by using ctree() function for each sample 
+conTree_under  <- ctree(target~. , data = datamodelling_under)
+conTree_over  <- ctree(target~. , data = datamodelling_over)
+conTree_both  <- ctree(target~. , data = datamodelling_both)
+
+# Predict the target in test set
+conTree_predict_under <- predict(conTree_under, test, type="response")
+conTree_predict_over <- predict(conTree_over, test, type="response")
+conTree_predict_both <- predict(conTree_both, test, type="response")
+
+# Generate a column for conditional tree prediction in test frame and add predictions obtained by conditional tree to the columns
+test$Prediction_conTree_under <- conTree_predict_under
+test$Prediction_conTree_over <- conTree_predict_over
+test$Prediction_conTree_both <- conTree_predict_both
+
+# Create confusion matrix
+confusionMatrix(test$Prediction_conTree_under, test$target, positive='1', mode = "prec_recall")
+confusionMatrix(test$Prediction_conTree_over, test$target, positive='1', mode = "prec_recall")
+confusionMatrix(test$Prediction_conTree_both, test$target, positive='1', mode = "prec_recall")
+```
+
+***Overfitting: It shows that conditional inference trees have severe overfiiting.  ***
+
+```{r}
+conTree_predict_under_t <- predict(conTree_under, datamodelling_under)
+DF_conTree_under<-data.frame(conTree_predict_under_t,datamodelling_under$target)
+confusionMatrix(DF_conTree_under$conTree_predict_under_t,DF_conTree_under$datamodelling_under.target, positive="1", mode = "prec_recall")
+
+conTree_predict_over_t <- predict(conTree_over, datamodelling_over)
+DF_conTree_over<-data.frame(conTree_predict_over_t,datamodelling_over$target)
+confusionMatrix(DF_conTree_over$conTree_predict_over_t,DF_conTree_over$datamodelling_over.target, positive="1", mode = "prec_recall")
+
+conTree_predict_both_t <- predict(conTree_both, datamodelling_both)
+DF_conTree_both<-data.frame(conTree_predict_both_t,datamodelling_both$target)
+confusionMatrix(DF_conTree_both$conTree_predict_both_t,DF_conTree_both$datamodelling_both.target, positive="1", mode = "prec_recall")
+```
+
+
+##3.3 SVM 
+
+```{r}
+# Build SVM models by using svm() function
+SVM_under_p <- svm(target~. , data = datamodelling_under, kernel = "radial", scale = TRUE, probability = TRUE, cost = 0.5)
+SVM_over_p <- svm(target~. , data = datamodelling_over, kernel = "radial", scale = TRUE, probability = TRUE, cost = 0.5)
+SVM_both_p <- svm(target~. , data = datamodelling_both, kernel = "radial", scale = TRUE, probability = TRUE, cost = 0.5)
+```
+
+```{r}
+# Predict the class of target in test set
+SVM_under_pred <- predict(SVM_under_p, test)
+SVM_over_pred <- predict(SVM_over_p, test)
+SVM_both_pred <- predict(SVM_both_p, test)
+
+# Create confusion matrix
+confusionMatrix(SVM_under_pred, test$target, positive='1', mode = "prec_recall")
+confusionMatrix(SVM_over_pred, test$target, positive='1', mode = "prec_recall")
+confusionMatrix(SVM_both_pred, test$target, positive='1', mode = "prec_recall")
+```
+
+
+##3.4 Logistic Regression
+
+```{r}
+# Build a logistic regression model assign it to LR_target
+LR_target_under <- glm(target ~. , data = datamodelling_under, family = "binomial")
+LR_target_over <- glm(target ~. , data = datamodelling_over, family = "binomial")
+LR_target_both <- glm(target ~. , data = datamodelling_both, family = "binomial")
+
+# Predict the class probabilities of the test data
+LR_prob_under <- predict(LR_target_under, test, type="response")
+LR_prob_over <- predict(LR_target_over, test, type="response")
+LR_prob_both <- predict(LR_target_both, test, type="response")
+
+# Predict the class 
+LR_class_under <- ifelse(LR_prob_under > 0.45, "1", "0")
+LR_class_over <- ifelse(LR_prob_over > 0.45, "1", "0")
+LR_class_both <- ifelse(LR_prob_both > 0.45, "1", "0")
+
+# Save the predictions as factor variables
+LR_class_under <- as.factor(LR_class_under)
+LR_class_over <- as.factor(LR_class_over)
+LR_class_both <- as.factor(LR_class_both)
+
+test$LR_prob_under <- LR_prob_under
+test$LR_prob_over <- LR_prob_over
+test$LR_prob_both <- LR_prob_both
+
+# Create confusion Matrix for LR
+confusionMatrix(LR_class_under, test$target, positive='1', mode = "prec_recall")
+confusionMatrix(LR_class_over, test$target, positive='1', mode = "prec_recall")
+confusionMatrix(LR_class_both, test$target, positive='1', mode = "prec_recall")
+```
+
+***Since the performance of Logistic Regression is the best based on low marketing cost, we develop our LR model a little further by picking up the variables again to improve the model.***
+
+***Here we use backward elimination to select variables in th regression model. We expect to get better fitting effect via deleting more irrelevant variables.***
+
+```{r}
+# Catch the upper limit for step function
+LR_target_both <- glm(target ~. , data = datamodelling_both, family = "binomial")
+# Get the new model by chosing new variables by step function
+backward.glm_both <- step(LR_target_both, scope=list(upper=LR_target_both), direction="backward")
+```
+
+***After we get the new logistic regression model, we check the performance of prediction.***
+
+```{r}
+# Predict the class probabilities of the test data
+LR_prob_both_b <- predict(backward.glm_both, test, type="response")
+
+# Try different threshold to predict the class 
+LR_class_both1 <- ifelse(LR_prob_both_b > 0.15, "1", "0")
+LR_class_both2 <- ifelse(LR_prob_both_b > 0.3, "1", "0")
+LR_class_both3 <- ifelse(LR_prob_both_b > 0.5, "1", "0")
+
+# Save the predictions as factor variables
+LR_class_both1 <- as.factor(LR_class_both1)
+LR_class_both2 <- as.factor(LR_class_both2)
+LR_class_both3 <- as.factor(LR_class_both3)
+
+test$LR_prob_both_b <- LR_prob_both_b
+```
+
+***Make evaluation for new models.***
+
+```{r}
+# Use roc function to return some performance metrics
+ROC_LR_both_b <- roc(test$target, LR_prob_both_b)
+
+# Extract required data from ROC_RF
+df_LR_both_b = data.frame((1-ROC_LR_both_b$specificities), ROC_LR_both_b$sensitivities)
+
+# Plot the ROC curve for LR_under, over, and both
+plot(df_LR_both_b, col="red", type="l",   # Add ROC curve for new LR_both_b
+xlab="False Positive Rate (1-Specificity)", ylab="True Positive Rate (Sensitivity)")
+lines(df_LR_both, col="blue")             # Add ROC curve for original LR_both
+abline(a = 0, b = 1, col = "lightgray")   # Add a diagonal line
+legend("bottomright",
+c("LR_both_backward", "LR_both_original"),
+fill=c("red","blue"))
+
+# Confusion Matrix for LR
+confusionMatrix(LR_class_both1, test$target, positive='1', mode = "prec_recall")
+confusionMatrix(LR_class_both2, test$target, positive='1', mode = "prec_recall")
+confusionMatrix(LR_class_both3, test$target, positive='1', mode = "prec_recall")
+```
+
+***Unfortunately, after backward elimination, we only delete 5 variables and the confusion matrices have no significant change.***
+
+
+##3.5 Linear Discriminant Analysis
+
+```{r}
+# Build LDA models by using lda() function
+LDAmodel_under <- lda(target~., data = datamodelling_under)
+LDAmodel_over <- lda(target~., data = datamodelling_over)
+LDAmodel_both <- lda(target~., data = datamodelling_both)
+
+# Predict the Test set results 
+LDA_predict_under <- predict(LDAmodel_under, test)
+LDA_predict_over <- predict(LDAmodel_over, test)
+LDA_predict_both <- predict(LDAmodel_both, test)
+
+# Generate a column for LDA prediction in test frame and add predictions obtained by LDA to the columns
+test$PredictionLDA_under <- LDA_predict_under$class
+test$PredictionLDA_over <- LDA_predict_over$class
+test$PredictionLDA_both <- LDA_predict_both$class
+
+confusionMatrix(test$PredictionLDA_under, test$target, positive='1', mode = "prec_recall")
+confusionMatrix(test$PredictionLDA_over, test$target, positive='1', mode = "prec_recall")
+confusionMatrix(test$PredictionLDA_both, test$target, positive='1', mode = "prec_recall")
+```
+
+
+##3.6 Random Forest
+
+```{r}
+# Build Random Forest model and assign it to model_RF
+model_RF_undersampled <- randomForest(target~., datamodelling_under)
+model_RF_oversampled <- randomForest(target~., datamodelling_over)
+model_RF_bothsampled <- randomForest(target~., datamodelling_both)
+
+# Print model_RF
+print(model_RF_undersampled)
+print(model_RF_oversampled)
+print(model_RF_bothsampled)
+
+# Predict the class of the test data
+RF_pred_undersampled <- predict(model_RF_undersampled, test)
+RF_pred_oversampled <- predict(model_RF_oversampled, test)
+RF_pred_bothsampled <- predict(model_RF_bothsampled, test)
+
+# Confusion matrix
+confusionMatrix(RF_pred_undersampled, test$target, positive='1', mode = "prec_recall")
+confusionMatrix(RF_pred_oversampled, test$target, positive='1', mode = "prec_recall")
+confusionMatrix(RF_pred_bothsampled, test$target, positive='1', mode = "prec_recall")
+```
+
+
+#4 Evaluation
+
+##4.1 ROC
+
+```{r}
+# Obtain class probabilities by using predict() and adding type = "vector" for decision tree model
+prob_Dtree_under <- predict(Dtree_under, test, type="vector")
+prob_Dtree_over <- predict(Dtree_over, test, type="vector")
+prob_Dtree_both <- predict(Dtree_both, test, type="vector")
+
+# Use roc function to return some performance metrics
+ROC_Dtree_under <- roc(test$target,as.numeric(prob_Dtree_under[,2] ))
+ROC_Dtree_over <- roc(test$target,as.numeric(prob_Dtree_over[,2] ))
+ROC_Dtree_both <- roc(test$target,as.numeric(prob_Dtree_both[,2] ))
+
+# Extract required data 
+df_Dtree_under = data.frame((1-ROC_Dtree_under$specificities), ROC_Dtree_under$sensitivities)
+df_Dtree_over = data.frame((1-ROC_Dtree_over$specificities), ROC_Dtree_over$sensitivities)
+df_Dtree_both = data.frame((1-ROC_Dtree_both$specificities), ROC_Dtree_both$sensitivities)
+```
+
+```{r}
+# Obtain class probabilities by using predict() and adding type = "prob" for conditional inference tree model
+prob_conTree_under <- predict(conTree_under, test, type="prob")
+prob_conTree_over <- predict(conTree_over, test, type="prob")
+prob_conTree_both <- predict(conTree_both, test, type="prob")
+
+# Use roc function to return some performance metrics
+ROC_conTree_under <- roc(test$target,as.numeric(prob_conTree_under[,2] ))
+ROC_conTree_over <- roc(test$target,as.numeric(prob_conTree_over[,2] ))
+ROC_conTree_both <- roc(test$target,as.numeric(prob_conTree_both[,2] ))
+
+# Extract required data 
+df_conTree_under = data.frame((1-ROC_conTree_under$specificities), ROC_conTree_under$sensitivities)
+df_conTree_over = data.frame((1-ROC_conTree_over$specificities), ROC_conTree_over$sensitivities)
+df_conTree_both = data.frame((1-ROC_conTree_both$specificities), ROC_conTree_both$sensitivities)
+```
+
+```{r}
+# Obtain class probabilities by using predict() and adding probability = TRUE for SVM
+SVM_under_predict <- predict(SVM_under_p, test, probability = TRUE)
+SVM_over_predict <- predict(SVM_over_p, test, probability = TRUE)
+SVM_both_predict <- predict(SVM_both_p, test, probability = TRUE)
+
+# Select second column belongs to response 
+SVM_under_prob <- attr(SVM_under_predict, "probabilities")[,2]
+SVM_over_prob <- attr(SVM_over_predict, "probabilities")[,2]
+SVM_both_prob <- attr(SVM_both_predict, "probabilities")[,2]
+
+# Obtain the ROC curve data for decision tree
+ROC_SVM_under <- roc(test$target, SVM_under_prob)
+ROC_SVM_over <- roc(test$target, SVM_over_prob)
+ROC_SVM_both <- roc(test$target, SVM_both_prob)
+
+# Extract required data from ROC_SVM
+df_SVM_under = data.frame((1-ROC_SVM_under$specificities), ROC_SVM_under$sensitivities)
+df_SVM_over = data.frame((1-ROC_SVM_over$specificities), ROC_SVM_over$sensitivities)
+df_SVM_both = data.frame((1-ROC_SVM_both$specificities), ROC_SVM_both$sensitivities)
+```
+
+```{r}
+# Use roc function to return some performance metrics of Logistic Regression
+ROC_LR_under <- roc(test$target, LR_prob_under)
+ROC_LR_over <- roc(test$target, LR_prob_over)
+ROC_LR_both <- roc(test$target, LR_prob_both)
+
+# Extract required data from ROC_RF - LR
+df_LR_under = data.frame((1-ROC_LR_under$specificities), ROC_LR_under$sensitivities)
+df_LR_over = data.frame((1-ROC_LR_over$specificities), ROC_LR_over$sensitivities)
+df_LR_both = data.frame((1-ROC_LR_both$specificities), ROC_LR_both$sensitivities)
+```
+
+```{r}
+# Obtain class probabilities by using predict() and adding type = "prob" for LDA model
+prob_LDA_under <- predict(LDAmodel_under,test, type = "prob")
+LDA_under_posterior<-as.data.frame(prob_LDA_under[["posterior"]])
+
+prob_LDA_over <- predict(LDAmodel_over,test, type = "prob")
+LDA_over_posterior<-as.data.frame(prob_LDA_over[["posterior"]])
+
+prob_LDA_both <- predict(LDAmodel_both,test, type = "prob")
+LDA_both_posterior<-as.data.frame(prob_LDA_both[["posterior"]])
+
+# Use roc function to return some performance metrics
+ROC_LDA_under <- roc(test$target,LDA_under_posterior[,2] )
+ROC_LDA_over <- roc(test$target,LDA_over_posterior[,2] )
+ROC_LDA_both <- roc(test$target,LDA_both_posterior[,2] )
+
+# Extract required data from ROC_LDA
+df_LDA_under = data.frame((1-ROC_LDA_under$specificities), ROC_LDA_under$sensitivities)
+df_LDA_over = data.frame((1-ROC_LDA_over$specificities), ROC_LDA_over$sensitivities)
+df_LDA_both = data.frame((1-ROC_LDA_both$specificities), ROC_LDA_both$sensitivities)
+```
+
+```{r}
+# Obtain class probabilities by using predict() and adding type = "prob" for Random Forest model
+RF_prob_undersampled <- predict(model_RF_undersampled, test, type = "prob")  
+RF_prob_oversampled <- predict(model_RF_oversampled, test, type = "prob")
+RF_prob_bothsampled <- predict(model_RF_bothsampled, test, type = "prob") 
+
+# The second column indicates probability of having transaction
+ROC_RF_undersampled <- roc(test$target, RF_prob_undersampled[,2])
+ROC_RF_oversampled <- roc(test$target, RF_prob_oversampled[,2])
+ROC_RF_bothsampled <- roc(test$target, RF_prob_bothsampled[,2])
+
+# Extract True Positive Rate (Sensitivities) and False Positive Rate (Specificities) for plotting
+df_RF_undersampled = data.frame((1-ROC_RF_undersampled$specificities), ROC_RF_undersampled$sensitivities)
+df_RF_oversampled = data.frame((1-ROC_RF_oversampled$specificities), ROC_RF_oversampled$sensitivities)
+df_RF_bothsampled = data.frame((1-ROC_RF_bothsampled$specificities), ROC_RF_bothsampled$sensitivities)
+```
+
+***Plot ROC chart for each model.***
+```{r}
+par(mfrow=c(2,3))
+
+# Decision Tree
+plot(df_Dtree_under, col="red", type="l", main="ROC of Decision Tree" ,
+xlab="False Positive Rate (1-Specificity)", ylab="True Positive Rate (Sensitivity)")
+lines(df_Dtree_over, col="blue")            
+lines(df_Dtree_both, col="green",type="c")       # The green line almost overlaps the blue line, use type="c" to distinguish        
+grid(NULL, lwd = 1)
+abline(a = 0, b = 1, col = "lightgray") #adds a diagonal line
+legend("bottomright",
+c("Undersampled","Oversampled", "Bothsampled"),
+fill=c("red","blue", "green"),cex=0.9)
+
+# Conditional Inference Tree
+plot(df_conTree_under, col="red", type="l", main="ROC of Conditional Inference Tree" ,
+xlab="False Positive Rate (1-Specificity)", ylab="True Positive Rate (Sensitivity)")
+lines(df_conTree_over, col="blue")            
+lines(df_conTree_both, col="green")             
+grid(NULL, lwd = 1)
+abline(a = 0, b = 1, col = "lightgray") # Add a diagonal line
+legend("bottomright",
+c("Undersampled","Oversampled", "Bothsampled"),
+fill=c("red","blue", "green"),cex=0.9)
+
+# SVM
+plot(df_SVM_under, col="red", type="l", main="ROC of Support Vector Machine" ,       # Add ROC curve for SVM undersampling method
+xlab="False Positive Rate (1-Specificity)", ylab="True Positive Rate (Sensitivity)")
+lines(df_SVM_over, col="blue")               # adds ROC curve for SVM oversampling method
+lines(df_SVM_both, col="green")              # adds ROC curve for SVM bothsampling method
+grid(NULL, lwd = 1)
+abline(a = 0, b = 1, col = "lightgray") # adds a diagonal line
+legend("bottomright",
+c("Undersampling", "Oversampling","Bothsampling"),
+fill=c("red", "blue","green"),cex=0.9)
+
+# Logistic Regression
+plot(df_LR_under, col="red", type="l", main="ROC of Logistic Regression" ,        # Add ROC curve for LR_under
+xlab="False Positive Rate (1-Specificity)", ylab="True Positive Rate (Sensitivity)")
+lines(df_LR_over, col="blue")               # Add ROC curve for LR_over
+lines(df_LR_both, col="green")                # Add ROC curve for LR_both
+grid(NULL, lwd = 1)
+abline(a = 0, b = 1, col = "lightgray") # Add a diagonal line
+legend("bottomright",
+c("Undersampled", "Oversampled","Bothsampled"),
+fill=c("red", "blue","green"),cex=0.9)
+
+# LDA
+plot(df_LDA_under, col="red", type="l", main="ROC of Linerar Discriminant Analysis" ,
+xlab="False Positive Rate (1-Specificity)", ylab="True Positive Rate (Sensitivity)")
+lines(df_LDA_over, col="blue")            
+lines(df_LDA_both, col="green")             
+grid(NULL, lwd = 1)
+abline(a = 0, b = 1, col = "lightgray") # Add a diagonal line
+legend("bottomright",
+c("Undersampled","Oversampled", "Bothsampled"),
+fill=c("red","blue", "green"),cex=0.9)
+
+# Random Forest
+plot(df_RF_undersampled, col="red", type="l", main="ROC of Random Forest" ,  
+xlab="False Positive Rate (1-Specificity)", ylab="True Positive Rate (Sensitivity)")
+lines(df_RF_oversampled, col="blue")               
+lines(df_RF_bothsampled, col="green") 
+grid(NULL, lwd = 1)
+abline(a = 0, b = 1, col = "lightgray") # Add a diagonal line
+legend("bottomright",
+c("Undersampled","Oversampled", "Bothsampled"),
+fill=c("red","blue", "green"),cex=0.9)
+```
+
+***Plot ROC chart of all models. From each model, we chose the best performing ROC out of 3 sampling methods.***
+```{r}
+par(mfrow=c(1,1))
+
+plot(df_Dtree_under, col="red", type="l", main="ROC of All Models" ,
+xlab="False Positive Rate (1-Specificity)", ylab="True Positive Rate (Sensitivity)")
+lines(df_conTree_under, col="blue")            
+lines(df_SVM_both, col="green")   
+lines(df_LR_both, col="black") 
+lines(df_LDA_both, col="orange") 
+lines(df_RF_undersampled, col="darkgreen") 
+grid(NULL, lwd = 1)
+abline(a = 0, b = 1, col = "lightgray") #adds a diagonal line
+legend("bottomright",c("Dtree_under","ConTree_under", "SVM_both","LR_both","LDA_both","RF_under"),fill=c("red","blue", "green","black","orange","darkgreen"),cex=0.9)
+```
+
+##4.2 AUC
+
+```{r}
+# Use auc() funstion to calculate the area under the ROC curve for each model, and assign them into auc_table
+Model<-c("Decision Tree","Conditional Inference Tree","Support Vector Machine","Logistic Regression","Linear Discriminant Analysis","Random Forest")
+Under<-c(auc(ROC_Dtree_under)[1],auc(ROC_conTree_under)[1],auc(ROC_SVM_under),auc(ROC_LR_under),auc(ROC_LDA_under)[1],auc(ROC_RF_undersampled))
+Over<-c(auc(ROC_Dtree_over)[1],auc(ROC_conTree_over)[1],auc(ROC_SVM_over),auc(ROC_LR_over),auc(ROC_LDA_over)[1],auc(ROC_RF_oversampled))
+Both<-c(auc(ROC_Dtree_both)[1],auc(ROC_conTree_both)[1],auc(ROC_SVM_both),auc(ROC_LR_both),auc(ROC_LDA_both)[1],auc(ROC_RF_bothsampled))
+auc_table<-data.frame(Model,Under,Over,Both)
+print(auc_table)
+```
+
+##4.3 Gain Chart
+
+***Obtain cumulative gains tables with increment of 1/100.***
+
+```{r  message=FALSE}
+# Decision Tree
+GainTable_Dtree_under <- cumGainsTable(as.numeric(prob_Dtree_under[,2]), test$target, resolution = 1/100)
+GainTable_Dtree_over <- cumGainsTable(as.numeric(prob_Dtree_over[,2]), test$target, resolution = 1/100)
+GainTable_Dtree_both <- cumGainsTable(as.numeric(prob_Dtree_both[,2]), test$target, resolution = 1/100)
+
+# Conditional Inference Tree
+GainTable_conTree_under <- cumGainsTable(as.numeric(prob_conTree_under[,2]), test$target, resolution = 1/100)
+GainTable_conTree_over <- cumGainsTable(as.numeric(prob_conTree_over[,2]), test$target, resolution = 1/100)
+GainTable_conTree_both <- cumGainsTable(as.numeric(prob_conTree_both[,2]), test$target, resolution = 1/100)
+
+# SVM
+GainTable_SVM_under <- cumGainsTable(SVM_under_prob, test$target, resolution = 1/100)
+GainTable_SVM_over <- cumGainsTable(SVM_over_prob, test$target, resolution = 1/100)
+GainTable_SVM_both <- cumGainsTable(SVM_both_prob, test$target, resolution = 1/100)
+
+# Logistic Regression
+GainTable_LR_under <- cumGainsTable(LR_prob_under, test$target, resolution = 1/100)
+GainTable_LR_over <- cumGainsTable(LR_prob_over, test$target, resolution = 1/100)
+GainTable_LR_both <- cumGainsTable(LR_prob_both, test$target, resolution = 1/100)
+
+# LDA
+GainTable_LDA_under <- cumGainsTable(LDA_under_posterior[,2], test$target, resolution = 1/100)
+GainTable_LDA_over <- cumGainsTable(LDA_over_posterior[,2], test$target, resolution = 1/100)
+GainTable_LDA_both <- cumGainsTable(LDA_both_posterior[,2], test$target, resolution = 1/100)
+
+# Random Forest
+GainTable_RF_undersampled <- cumGainsTable(RF_prob_undersampled[,2], test$target, resolution = 1/100)
+GainTable_RF_oversampled <- cumGainsTable(RF_prob_oversampled[,2], test$target, resolution = 1/100)
+GainTable_RF_bothsampled <- cumGainsTable(RF_prob_bothsampled[,2], test$target, resolution = 1/100)
+```
+
+***Plot gain chart for each model.*** 
+```{r}
+par(mfrow=c(2,3))
+
+# Decition Tree
+plot(GainTable_Dtree_under[,4], col="red", type="l", main="Gain Chart of Decision Tree"  ,
+xlab="Percentage of test instances", ylab="Percentage of correct predictions")
+lines(GainTable_Dtree_over[,4], col="blue")            
+lines(GainTable_Dtree_both[,4], col="green") 
+grid(NULL, lwd = 1)
+abline(a = 0, b = 1, col = "lightgray") # Add a diagonal line
+legend("bottomright",
+c("Undersampled","Oversampled", "Bothsampled"),
+fill=c("red","blue", "green"),cex=0.9)
+
+# Conditional Inference Tree
+plot(GainTable_conTree_under[,4], col="red", type="l", main="Gain Chart of Conditional Inference Tree"  ,
+xlab="Percentage of test instances", ylab="Percentage of correct predictions")
+lines(GainTable_conTree_over[,4], col="blue")            
+lines(GainTable_conTree_both[,4], col="green")  
+grid(NULL, lwd = 1)
+abline(a = 0, b = 1, col = "lightgray") # Add a diagonal line
+legend("bottomright",
+c("Undersampled","Oversampled", "Bothsampled"),
+fill=c("red","blue", "green"),cex=0.9)
+
+# SVM
+plot(GainTable_SVM_under[,4], col="red", type="l",main="Gain Chart of Support Vector Machine",
+xlab="Percentage of test instances", ylab="Percentage of correct predictions")
+lines(GainTable_SVM_over[,4], col="blue", type ="l")
+lines(GainTable_SVM_both[,4], col="green", type ="l")
+abline(a = 0, b = 1, col = "lightgray")
+grid(NULL, lwd = 1)
+legend("bottomright",
+c("Undersampling", "Oversampling","Bothsampling"),
+fill=c("red","blue","green"),cex=0.9)
+
+# Logistic Regression
+plot(GainTable_LR_under[,4], col="red", type="l",   main="Gain Chart of Logistic Regression"  ,  
+xlab="Percentage of test instances", ylab="Percentage of correct predictions")
+lines(GainTable_LR_over[,4], col="blue", type="l")
+lines(GainTable_LR_both[,4], col="green", type="l")
+abline(a = 0, b = 1, col = "lightgray")
+grid(NULL, lwd = 1)
+legend("bottomright",
+c("Undersampled", "Oversampled","Bothsampled"),
+fill=c("red", "blue","green"),cex=0.9)
+
+# LDA
+plot(GainTable_LDA_under[,4], col="red", type="l", main="Gain Chart of Linear Discriminant Analysis" ,  
+xlab="Percentage of test instances", ylab="Percentage of correct predictions")
+lines(GainTable_LDA_over[,4], col="blue")            
+lines(GainTable_LDA_both[,4], col="green")   
+grid(NULL, lwd = 1)
+abline(a = 0, b = 1, col = "lightgray") # Add a diagonal line
+legend("bottomright",
+c("Undersampled","Oversampled", "Bothsampled"),
+fill=c("red","blue", "green"),cex=0.9)
+
+# Random Forest
+plot(GainTable_RF_undersampled[,4], col="red", type="l",  main="Gain Chart of Random Forest"  ,  
+xlab="Percentage of test instances", ylab="Percentage of correct predictions")
+lines(GainTable_RF_oversampled[,4], col="blue", type ="l")
+lines(GainTable_RF_bothsampled[,4], col="green", type ="l")
+abline(a = 0, b = 1, col = "lightgray")
+grid(NULL, lwd = 1)
+legend("bottomright",
+c("Undersampled","Oversampled", "Bothsampled"),
+fill=c("red","blue", "green"),cex=0.9)
+```
+
+***Plot Gain chart of all models. From each model, we chose the best performing Gain chart curve out of 3 sampling methods.***
+```{r}
+par(mfrow=c(1,1))
+
+plot(GainTable_Dtree_under[,4], col="red", type="l", main="Gain Chart of All Models" ,
+xlab="Percentage of test instances", ylab="Percentage of correct predictions")
+lines(GainTable_conTree_under[,4], col="blue")            
+lines(GainTable_SVM_both[,4], col="green")   
+lines(GainTable_LR_both[,4], col="black") 
+lines(GainTable_LDA_both[,4], col="orange") 
+lines(GainTable_RF_undersampled[,4], col="darkgreen") 
+grid(NULL, lwd = 1)
+abline(a = 0, b = 1, col = "lightgray") #adds a diagonal line
+legend("bottomright",c("Dtree_under","ConTree_under", "SVM_both","LR_both","LDA_both","RF_under"),fill=c("red","blue", "green","black","orange","darkgreen"),cex=0.9)
+```
+
+
+##4.4 Lift Chart
+
+***Plot lift charts of each model.***
+```{r}
+# Decision Tree
+Lift.DTREE.under <- liftTable(prob_Dtree_under[,2], test$target, resolution = 1/100)
+Lift.DTREE.over <- liftTable(prob_Dtree_over[,2], test$target, resolution = 1/100)
+Lift.DTREE.both <- liftTable(prob_Dtree_both[,2], test$target, resolution = 1/100)
+
+# Conditional Inference Tree
+Lift.CONTREE.under <- liftTable(prob_conTree_under[,2], test$target, resolution = 1/100)
+Lift.CONTREE.over <- liftTable(prob_conTree_over[,2], test$target, resolution = 1/100)
+Lift.CONTREE.both <- liftTable(prob_conTree_both[,2], test$target, resolution = 1/100)
+
+# Lift chart for SVM
+Lift.SVM.under <- liftTable(SVM_under_prob, test$target, resolution = 1/100)
+Lift.SVM.over <- liftTable(SVM_over_prob, test$target, resolution = 1/100)
+Lift.SVM.both <- liftTable(SVM_both_prob, test$target, resolution = 1/100)
+
+# Logistic Regression
+Lift.LR.under <- liftTable(LR_prob_under, test$target, resolution = 1/100)
+Lift.LR.over <- liftTable(LR_prob_over, test$target, resolution = 1/100)
+Lift.LR.both <- liftTable(LR_prob_both, test$target, resolution = 1/100)
+
+# LDA
+Lift.LDA.under <- liftTable(LDA_under_posterior[,2], test$target, resolution = 1/100)
+Lift.LDA.over <- liftTable(LDA_over_posterior[,2], test$target, resolution = 1/100)
+Lift.LDA.both <- liftTable(LDA_both_posterior[,2], test$target, resolution = 1/100)
+
+# Random Forest
+Lift.RF.under <- liftTable(RF_prob_undersampled[,2], test$target, resolution = 1/100)
+Lift.RF.over <- liftTable(RF_prob_oversampled[,2], test$target, resolution = 1/100)
+Lift.RF.both <- liftTable(RF_prob_bothsampled[,2], test$target, resolution = 1/100)
+```
+
+***Plot lift chart for each model.*** 
+
+```{r}
+par(mfrow=c(2,3))
+
+# Decision Tree
+plot(
+    Lift.DTREE.under[, 2], col = "red", type = "l",
+    main="Lift Chart of Decision Tree",
+    xlab = "Percentage of test instances", ylab = "Lift")
+lines(Lift.DTREE.over[, 2], col = "blue", type = "l")
+lines(Lift.DTREE.both[,2], col="green", type ="l")
+grid(NULL, lwd = 1)
+abline(a = 1, b = 0, col = "grey")
+legend("topright",
+c("Undersampled", "Oversampled","Bothsampled"),
+fill=c("red","blue","green"),cex = 0.9)
+
+# Conditional Inference Tree
+plot(
+    Lift.CONTREE.under[, 2], col = "red", type = "l",
+    main="Lift Chart of Conditional Inference Tree",
+    xlab = "Percentage of test instances", ylab = "Lift")
+lines(Lift.CONTREE.over[, 2], col = "blue", type = "l")
+lines(Lift.CONTREE.both[,2], col="green", type ="l")
+grid(NULL, lwd = 1)
+abline(a = 1, b = 0, col = "grey")
+legend("topright",
+c("Undersampled", "Oversampled","Bothsampled"),
+fill=c("red","blue","green"),cex = 0.9)
+
+# SVM
+plot(
+    Lift.SVM.under[, 2], col = "red", type = "l",
+    main="Lift Chart of Support Vector Machine",
+    xlab = "Percentage of test instances", ylab = "Lift")
+lines(Lift.SVM.over[, 2], col = "blue", type = "l")
+lines(Lift.SVM.both[,2], col="green", type ="l")
+grid(NULL, lwd = 1)
+abline(a = 1, b = 0, col = "grey")
+legend("topright",
+c("Undersampled", "Oversampled","Bothsampled"),
+fill=c("red","blue","green"),cex = 0.9)
+
+# Logistic Regression
+plot(
+    Lift.LR.under[, 2], col = "red", type = "l",
+    main="Lift Chart of Logistic Regression",
+    xlab = "Percentage of test instances", ylab = "Lift")
+lines(Lift.LR.over[, 2], col = "blue", type = "l")
+lines(Lift.LR.both[,2], col="green", type ="l")
+grid(NULL, lwd = 1)
+abline(a = 1, b = 0, col = "grey")
+legend("topright",
+c("Undersampled", "Oversampled","Bothsampled"),
+fill=c("red","blue","green"),cex = 0.9)
+
+# LDA
+plot(
+    Lift.LDA.under[, 2], col = "red", type = "l",
+    main="Lift Chart of Linear Discriminant Analysis",
+    xlab = "Percentage of test instances", ylab = "Lift")
+lines(Lift.LDA.over[, 2], col = "blue", type = "l")
+lines(Lift.LDA.both[,2], col="green", type ="l")
+grid(NULL, lwd = 1)
+abline(a = 1, b = 0, col = "grey")
+legend("topright",
+c("Undersampled", "Oversampled","Bothsampled"),
+fill=c("red","blue","green"),cex = 0.9)
+
+# Random Forest
+plot(
+    Lift.RF.under[, 2], col = "red", type = "l",
+    main="Lift Chart of Random Forest",
+    xlab = "Percentage of test instances", ylab = "Lift")
+lines(Lift.RF.over[, 2], col = "blue", type = "l")
+lines(Lift.RF.both[,2], col="green", type ="l")
+grid(NULL, lwd = 1)
+abline(a = 1, b = 0, col = "grey")
+legend("topright",
+c("Undersampled", "Oversampled","Bothsampled"),
+fill=c("red","blue","green"),cex = 0.9)
+```
+
+
+#5. Futher Comparision
+
+***Sorted by AUC values and then Recall, the best performing models selected are SVM bothsampled (0.87 AUC, 0.66 Recall), Logistic Regression bothsampled (0.85 AUC, 0.8 Recall) and LDA bothsampled (0.85 AUC, 0.77 Recall). ***
+
+***ROC of best performing models***
+```{r}
+par(mfrow=c(1,1))
+
+plot(df_SVM_both, col="blue", type="l", main="ROC" ,lwd=1,
+xlab="False Positive Rate (1-Specificity)", ylab="True Positive Rate (Sensitivity)")
+axis(side = 1, at = c( 0,0.1, 0.2, 0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0))
+axis(side = 2, at = c( 0,0.1, 0.2, 0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0))
+abline(h = c(0,0.05,0.1, 0.15,0.2, 0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7,0.75,0.8,0.85,0.9,0.95,1.0), v = c(0,0.05,0.1, 0.15,0.2, 0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7,0.75,0.8,0.85,0.9,0.95,1.0), col = "grey",lwd=0.3,lty=3)
+lines(df_LR_both, col="red",lwd=1) 
+lines(df_LDA_both, col="green",lwd=1) 
+#grid(NULL, lwd = 1)
+abline(a = 0, b = 1, col = "darkgray",lty=2) #adds a diagonal line
+legend("bottomright",c("Support Vector Machine_Bothsampled","Logistic Regression_Bothsampled", "Linear Discriminant Analysis_Bothsampled"),col=c("blue","red", "green"),lty=c(1,1,1),lwd=c(1,1,1),cex=0.9)
+
+```
+
+***Gain chart of best performing models***
+```{r}
+plot(GainTable_SVM_both[,4], col="blue", type="l",lwd=1, main="Gain Chart " ,
+xlab="Percentage of test instances", ylab="Percentage of correct predictions",xlim=c(0,100),ylim=c(0,100))
+axis(side = 1, at = c( 0,10, 20, 30,40,50,60,70,80,90,100))
+axis(side = 2, at = c( 0,10, 20, 30,40,50,60,70,80,90,100))
+abline(h = c(0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100), v = c(0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100), col = "grey",lwd=0.3,lty=3)
+abline(a = 0, b = 1, col = "darkgray",lwd=1,lty=2) 
+lines(GainTable_LR_both[,4],col="red",type="l",lwd=1)
+lines(GainTable_LDA_both[,4],col="green",type="l",lwd=1)
+legend("bottomright",c("Support Vector Machine_Bothsampled","Logistic Regression_Bothsampled", "Linear Discriminant Analysis_Bothsampled"),col=c("blue","red", "green"),lty=c(1,1,1),lwd=c(1,1,1),cex=0.9)
+```
+
+***Lift chart of best performing models***
+```{r}
+plot(
+    Lift.SVM.both[, 2], col = "blue",type="l",lwd=1,
+    main="Lift Chart",
+    xlab = "Percentage of test instances", ylab = "Lift",xlim=c(0,100),ylim=c(0,9))
+axis(side = 1, at = c( 10, 20, 30,40,50,60,70,80,90,100))
+axis(side = 2, at = c( 1, 2, 3,4,5,6,7,8,9,10))
+#grid(nx=20,ny=15, lwd = 2,col="lightblue")
+abline(h = c(0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,9,9.5,10), v = c(0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100), col = "grey",lwd=0.3,lty=3)
+abline(a = 1, b = 0, col = "darkgray",lwd=1,lty=2)
+lines(Lift.LR.both[,2],col="red",type="l",lwd=1)
+lines(Lift.LDA.both[,2],col="green",type="l",lwd=1)
+legend("topright",c("Support Vector Machine_Bothsampled","Logistic Regression_Bothsampled", "Linear Discriminant Analysis_Bothsampled"),col=c("blue","red", "green"),lty=c(1,1,1),lwd=c(1,1,1),cex=0.9)
+```
+
+***After comparison, SVM and Logistic Regression are strong candidate models in this case. According to the scenario we set in the presentation, logistic regression bothsampled is our final choice. Below are the codes for charts shown in the presentation.***
+
+***(Lift chart in presentation)***
+```{r}
+# Lift chart for logistic regression and SVM 
+plot(
+    Lift.LR.both[, 2], col = "darkblue",type="l",lwd=2,
+    main="Lift Chart",
+    xlab = "Percentage of test instances", ylab = "Lift",xlim=c(0,100),ylim=c(0,9))
+axis(side = 1, at = c( 10, 20, 30,40,50,60,70,80,90,100))
+axis(side = 2, at = c( 1, 2, 3,4,5,6,7,8,9,10))
+#grid(nx=20,ny=15, lwd = 2,col="lightblue")
+abline(h = c(0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,9,9.5,10), v = c(0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100), col = "lightblue",lwd=0.3,lty=3)
+abline(a = 1, b = 0, col = "orange",lwd=2,lty=2)
+lines(Lift.SVM.both[,2],col="darkolivegreen3",type="l",lwd=2)
+legend("topright",
+c("Logistic Regression","Support Vector Machine","Baseline"),
+col=c("darkblue","darkolivegreen3","orange"),lty=c(1,1,2),lwd=c(2,2,2))
+
+```
+
+***Gain chart in presentation***
+```{r}
+# Lift chart for logistic regression
+plot(GainTable_LR_both[,4], col="darkblue", type="l",lwd=2, main="Gain Chart of Logistic Regression" ,
+xlab="Percentage of test instances", ylab="Percentage of correct predictions",xlim=c(0,100),ylim=c(0,100))
+axis(side = 1, at = c( 0,10, 20, 30,40,50,60,70,80,90,100))
+axis(side = 2, at = c( 0,10, 20, 30,40,50,60,70,80,90,100))
+abline(h = c(0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100), v = c(0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100), col = "lightblue",lwd=0.3,lty=3)
+abline(a = 0, b = 1, col = "orange",lwd=2,lty=2) 
+legend("bottomright",
+c("Logistic Regression","Baseline"),
+col=c("darkblue","orange"),lty=c(1,2),lwd=c(2,2))
+```
