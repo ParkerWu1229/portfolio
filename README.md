@@ -1,6 +1,6 @@
 # ParkerWu1229_MSBA_Warwick Business School
 
-These folders are my coursework for the last 2 years.
+These folders are my coursework for the last 2 years. Due to confidential conditions, I am unable to provide the R web crawler code of Index Asia, but it is pretty close to "web_crawler.Rmd" in Warwick/FoodHygiene_R/.
 
 ---
 ### Warwick Folder
