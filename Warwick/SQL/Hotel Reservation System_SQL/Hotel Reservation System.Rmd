@@ -1,0 +1,651 @@
+---
+title: "Hotel Reservation System"
+author: "Parker Wu"
+output: 
+  word_document: 
+    toc: yes
+    number_sections: yes
+header-includes:
+    - \usepackage{hyperref}
+---
+
+\newpage
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,comment=NA,attr.source='.numberLines')
+
+rm(list=ls())
+
+library(printr)
+library(formatR)
+library(gridExtra)
+library(grid)
+
+library(RSQLite)
+library(readxl)
+library(xlsx)
+```
+
+# SQL DDL Creating a new database and setting up the tables
+
+```{r connect}
+connection <- RSQLite::dbConnect(RSQLite::SQLite(), "Hotels_database.db")
+```
+
+## Create tables
+
+```{sql, connection = connection, attr.source='.numberLines'}
+-- Hotel 
+CREATE TABLE Hotel(
+  hotel_id INT PRIMARY KEY, 
+  hotel_name TEXT NOT NULL,
+  hotel_state TEXT NOT NULL,
+  hotel_city TEXT NOT NULL,
+  hotel_street_name TEXT NOT NULL,
+  hotel_street_number TEXT NOT NULL,
+  hotel_postal_code VARCHAR(10) NOT NULL,
+  hotel_phone VARCHAR(20) NOT NULL,
+  URL TEXT
+) ;
+```
+
+```{sql, connection=connection}
+-- Guest
+CREATE TABLE Guest(
+  guest_id INT PRIMARY KEY, 
+  first_name VARCHAR(50) NOT NULL,
+  middle_name VARCHAR(50),
+  last_name VARCHAR(50) NOT NULL,
+  nationality CHAR NOT NULL,
+  documentation_number INT NOT NULL,
+  doc_expiration_date CHAR NOT NULL,
+  birthdate CHAR,
+  gender TEXT NOT NULL,
+  country TEXT NOT NULL,
+  state TEXT NOT NULL,
+  city TEXT NOT NULL,
+  street_name TEXT NOT NULL,
+  street_number TEXT NOT NULL,
+  postal_code VARCHAR(10) NOT NULL,
+  email VARCHAR(90),
+  phone_home VARCHAR(20),
+  phone_work VARCHAR(20),
+  phone_cell VARCHAR(20)
+);
+```
+
+```{sql, connection = connection}
+-- Room
+CREATE TABLE Room( 
+  room_id INT PRIMARY KEY,
+  hotel_id INT,
+  room_name TEXT NOT NULL,
+  floor INT NOT NULL,
+  bed_number INT NOT NULL,
+  smoke_allow BIT NOT NULL,
+  FOREIGN KEY (hotel_id) 
+    REFERENCES Hotel(hotel_id)
+) ;
+```
+
+```{sql, connection = connection}
+-- Facility
+CREATE TABLE Facility( 
+  facility_id INT PRIMARY KEY,
+  hotel_id INT,
+  facility_name TEXT NOT NULL,
+  FOREIGN KEY (hotel_id) 
+    REFERENCES Hotel(hotel_id)
+);
+```
+
+```{sql, connection = connection}
+-- Invoice_Info
+CREATE TABLE Invoice_info( 
+  invoice_number INT PRIMARY KEY,
+  invoice_date CHAR NOT NULL,
+  billing_address TEXT
+);
+```
+
+```{sql, connection = connection}
+-- Invoice
+CREATE TABLE Invoice( 
+  invoice_id INT PRIMARY KEY,
+  invoice_number INT,
+  invoice_item TEXT,
+  cash_flow NUMERIC,
+  FOREIGN KEY (invoice_number) 
+    REFERENCES Invoice_info(invoice_number)
+);
+```
+
+```{sql, connection = connection}
+-- Channel
+CREATE TABLE Channel( 
+  channel_id INT PRIMARY KEY,
+  booking_fee NUMERIC NOT NULL,
+  booking_channel TEXT NOT NULL
+);
+```
+
+```{sql, connection = connection}
+-- Record
+CREATE TABLE Record( 
+  record_id INT PRIMARY KEY,
+  guest_id INT,
+  hotel_id INT,
+  channel_id INT,
+  invoice_number INT,
+  facility_id INT,
+  room_id INT,
+  service TEXT,
+  time_from CHAR NOT NULL,
+  time_to CHAR NOT NULL,
+  cash_flow NUMERIC NOT NULL,
+  FOREIGN KEY (guest_id) 
+    REFERENCES Guest(guest_id),
+  FOREIGN KEY (hotel_id) 
+    REFERENCES Hotel(hotel_id),
+  FOREIGN KEY (channel_id) 
+    REFERENCES Channel(channel_id),
+  FOREIGN KEY (invoice_number) 
+    REFERENCES Invoice_info(invoice_number),
+  FOREIGN KEY (facility_id) 
+    REFERENCES Facility(facility_id),
+  FOREIGN KEY (room_id) 
+    REFERENCES Room(room_id)
+);
+```
+
+```{sql, connection = connection}
+-- Reservation
+CREATE TABLE Reservation( 
+  reserve_id INT PRIMARY KEY,
+  guest_id INT,
+  channel_id INT,
+  facility_id INT,
+  hotel_id INT,
+  room_id INT,
+  reservation_number INT NOT NULL,
+  creditcard_number INT(16) NOT NULL,
+  card_expiration_date CHAR NOT NULL,
+  card_type TEXT NOT NULL,
+  arrival_date CHAR NOT NULL,
+  departure_date CHAR NOT NULL,
+  billing_address TEXT NOT NULL,
+  pref_smoke_allow BIT,
+  pref_bed_number INT,
+  pref_floor INT,
+  amount_paid NUMERIC,
+  FOREIGN KEY (guest_id) 
+    REFERENCES Guest(guest_id),
+  FOREIGN KEY (channel_id) 
+    REFERENCES Channel(channel_id),
+  FOREIGN KEY (facility_id) 
+    REFERENCES Facility(facility_id),
+  FOREIGN KEY (hotel_id) 
+    REFERENCES Hotel(hotel_id),
+  FOREIGN KEY (room_id) 
+    REFERENCES Room(room_id)
+);
+```
+
+```{r, message=FALSE}
+RSQLite::dbListTables(connection)
+```
+
+## Demonstrate the inserting of data
+
+```{sql connection=connection, tidy=TRUE}
+INSERT INTO Hotel(hotel_id,hotel_name,hotel_state,hotel_city,hotel_street_name,hotel_street_number,hotel_postal_code,hotel_phone,URL) VALUES
+(0,"Thomas Group","Austria","Vienna","Christopher Island",498,99605,5906080,"https://wyatt.org/"),
+(1,"Hawkins PLC","United States of America","New York","Cisneros Plains",689,77458,61122945,"https://callahan.com/"),
+(2,"Washington and Sons","Suriname","Paramaribo","Page Plains",612,95184,97703258,"https://haas.net/");
+```
+
+```{r}
+dbReadTable(connection, "Hotel")
+```
+
+```{sql connection=connection}
+INSERT INTO Guest(guest_id,first_name,middle_name,last_name,nationality,birthdate,gender,country,state,city,street_name,street_number,postal_code,email,phone_home,phone_work,phone_cell,documentation_number,doc_expiration_date) VALUES
+(0,"Mark","Daniel LLC","Sanchez","American","1996-07-18","F","Swaziland","Massachusetts","Kimberlystad","Scott Loop",565,85632,	"robin57@yahoo.com",NULL,92194442,58628134724,"GA5601839","2022-10-09"),
+(1,"John","Burgess","Mckinney","Australian","1989-01-15","F","Zambia","Wyoming","Mannland","Boyd Spurs",250,34976,"keithholmes@cook.com",	NULL,68781517,90223451618,"UO9485060","2021-11-05"),
+(2,"Tina","Freeman","Jones","British","1989-04-11","M","United Kingdom","Florida","East Johnmouth","Booth Loaf",396,91445	,"xspencer@yahoo.com",	NULL,	28002393,	14496265244, "PF9383879","2025-12-11");
+```
+
+```{r}
+dbReadTable(connection, "Guest")
+```
+
+```{sql connection=connection}
+INSERT INTO Room(room_id,hotel_id,room_name,floor,bed_number,smoke_allow) VALUES
+(1,0,"478",4,2,1),
+(2,4,"490",4,1,0),
+(3,5,"Presidential Suite",10,2,0);
+```
+
+```{r}
+dbReadTable(connection, "Room")
+```
+
+```{sql connection=connection}
+INSERT INTO Facility(facility_id,facility_name,hotel_id) VALUES
+(1,"large room",0),
+(2,"mini-bar",0),
+(3,"Spa",	2);
+```
+
+```{r}
+dbReadTable(connection, "Facility")
+```
+
+```{sql connection=connection}
+INSERT INTO Invoice_info(Invoice_number,invoice_date,billing_address) VALUES
+(0,"2019-04-25","3951 Kelly Point Apt. 074"),
+(1,"2020-06-17","70062 Willis Mills"),
+(2,"2020-11-09","70062 Willis Mills");
+```
+
+```{r message=FALSE}
+dbReadTable(connection, "Invoice_info")
+```
+
+```{sql connection=connection}
+INSERT INTO Invoice(invoice_number,invoice_item,cash_flow,invoice_id) VALUES
+(0,478,1350,0),
+(0,"large room",1000,1),
+(0,"mini-bar",40,2);
+```
+
+```{r message=FALSE}
+dbReadTable(connection, "Invoice")
+```
+
+```{sql connection=connection}
+INSERT INTO Channel(channel_id,booking_channel,booking_fee) VALUES
+(0,"Hotel Self Booking",0),
+(1,"Expedia",	10),
+(2,"Booking.com",20.5);
+```
+
+```{r message=FALSE}
+dbReadTable(connection, "Channel")
+```
+
+```{sql connection=connection}
+INSERT INTO Record(record_id,guest_id,room_id,facility_id,invoice_number,channel_id,Service,Cash_flow,time_from	,time_to,hotel_id) VALUES
+(0,0,1,0,0,7,478,1350,"2019-04-16","2019-04-25",0),
+(1,0,0,1,0,7,"large room",1000,"2019-04-16","2019-04-25",0),
+(2,0,0,2,0,7,"mini-bar",40,"2019-04-16","2019-04-25",0);
+```
+
+```{r message=FALSE}
+dbReadTable(connection, "Record")
+```
+
+```{sql connection=connection}
+INSERT INTO Reservation(guest_id,reserve_id,room_id,facility_id,channel_id,pref_floor,pref_bed_number	,pref_smoke_allow,creditcard_number,card_expiration_date,reservation_number,card_type,billing_address	,arrival_date,departure_date,hotel_id,amount_paid) VALUES
+(0,0,1,0,7,4,2,1,5000000000000000,"202303",0,"mastercard","3951 Kelly Point Apt. 074","2019-04-16","2019-04-25",	0,210),
+(0,1,0,1,7,NULL,NULL,NULL,3550000000000000,"202312",0,"mastercard","3951 Kelly Point Apt. 074","2019-04-16","2019-04-25",0,210),
+(0,2,0,2,7,NULL,NULL,NULL,3570000000000000,"202705",0,"mastercard","3951 Kelly Point Apt. 074","2019-04-16","2019-04-25",0,210);
+```
+
+```{r message=FALSE}
+dbReadTable(connection, "Reservation")
+```
+
+## Insert large dummy data set to test the DQL part
+
+```{r}
+# Read dummy excel data file into R
+Channel <- read_excel("Fake data - Excel files/Channel.xlsx")
+Facility <- read_excel("Fake data - Excel files/Facility.xlsx")
+Guest <- read_excel("Fake data - Excel files/Guest.xlsx")
+Hotel <- read_excel("Fake data - Excel files/Hotel.xlsx")
+Invoice <- read_excel("Fake data - Excel files/Invoice.xlsx")
+Invoice_info <- read_excel("Fake data - Excel files/Invoice_info.xlsx")
+Record <- read_excel("Fake data - Excel files/Record.xlsx")
+Reservation <- read_excel("Fake data - Excel files/Reservation.xlsx")
+Room <- read_excel("Fake data - Excel files/Room.xlsx")
+```
+
+```{r}
+# Insert full dummy data to tables. Use overwrite = TRUE to advoid duplications as excel files contain of full dummy data including of all observation inserted previously
+
+dbWriteTable(connection, "Channel", Channel, overwrite = TRUE)
+dbWriteTable(connection, "Facility", Facility, overwrite = TRUE)
+dbWriteTable(connection, "Guest", Guest, overwrite = TRUE)
+dbWriteTable(connection, "Hotel", Hotel, overwrite = TRUE)
+dbWriteTable(connection, "Invoice", Invoice, overwrite = TRUE)
+dbWriteTable(connection, "Invoice_info", Invoice_info, overwrite = TRUE)
+dbWriteTable(connection, "Record", Record, overwrite = TRUE)
+dbWriteTable(connection, "Reservation", Reservation, overwrite = TRUE)
+dbWriteTable(connection, "Room", Room, overwrite = TRUE)
+```
+
+```{r eval=FALSE}
+# Read newly updated tables to check if the data is uploaded successfully
+dbReadTable(connection, "Channel")
+dbReadTable(connection, "Facility")
+dbReadTable(connection, "Guest")
+dbReadTable(connection, "Hotel")
+dbReadTable(connection, "Invoice")
+dbReadTable(connection, "Invoice_info")
+dbReadTable(connection, "Record")
+dbReadTable(connection, "Reservation")
+dbReadTable(connection, "Room")
+
+```
+
+# SQL DQL - Queries for specific business goal
+
+## Question 1 : The total spent for the customer for a particular stay (checkout invoice)
+
+```{sql connection=connection}
+--Check the total spent for the guest Mark Sanchez during his stay from 2019-04-16 to  2019-04-25 
+
+WITH service_spend AS 
+(
+SELECT DISTINCT b.first_name AS customer_first_name
+, b.last_name AS customer_last_name
+, DATE(a.time_from) AS stay_from
+, DATE(a.time_to) AS stay_to
+, a.Service as item
+, SUM(a.cash_flow) AS spending
+FROM Record a
+INNER JOIN Guest b ON a.guest_id=b.guest_id
+WHERE b.first_name = "Mark" 
+AND b.last_name = "Sanchez"
+AND DATE(a.time_from) = DATE('2019-04-16')
+AND DATE(a.time_to) = DATE('2019-04-25')
+GROUP BY 1,2,3,4,5
+) -- this table is to list all rooms and facilities of the guest during his stay and check the corresponding spending
+
+, total_spend as 
+(
+SELECT DISTINCT b.first_name AS customer_first_name
+, b.last_name AS customer_last_name
+, DATE(a.time_from) AS stay_from
+, DATE(a.time_to) AS stay_to
+, 'TOTAL SPENDING' as item
+, SUM(a.cash_flow) AS spending
+FROM Record a
+INNER JOIN Guest b ON a.guest_id=b.guest_id
+WHERE b.first_name = "Mark" 
+AND b.last_name = "Sanchez"
+AND DATE(a.time_from) = DATE('2019-04-16')
+AND DATE(a.time_to) = DATE('2019-04-25')
+GROUP BY 1,2,3,4,5
+) -- this table is to calculate total spending of the guest during his stay
+
+SELECT * FROM service_spend
+UNION
+SELECT * FROM total_spend
+ORDER BY 6 -- this is to summarise the spending of the guest during the stay with detailed spending and total spending
+
+```
+
+```{r echo=FALSE}
+#knitr::kable(quest1_result, digits = 2, caption = "A table produced by printr.")
+
+#grid.table(quest1_result)
+```
+
+## Question 2 : The most valuable customers in (a) the last two months, (b) past year and (c) from the beginning of the records.
+
+```{sql connection=connection}
+--Quest2a: The most valuable customers in the last two months
+
+-- Assumption: customer value is the total spending of customers at the hotel, considering both stay and mere usage of facilities
+
+SELECT DISTINCT a.guest_id
+, b.first_name
+, b.last_name
+, SUM(a.cash_flow) AS total_spent
+FROM Record a 
+INNER JOIN Guest b ON a.guest_id = b.guest_id
+WHERE DATE(a.time_to) >= DATE('now','-2 month')
+GROUP BY 1,2,3
+LIMIT 1;
+```
+
+```{sql connection=connection}
+--Quest2b: The most valuable customers in the past year
+
+-- Assumption: customer value is the total spending of customers at the hotel, considering both stay and mere usage of facilities
+
+SELECT DISTINCT a.guest_id
+, b.first_name
+, b.last_name
+, SUM(a.cash_flow) AS total_spent
+FROM Record a 
+INNER JOIN Guest b ON a.guest_id = b.guest_id
+WHERE DATE(a.time_to) >= DATE('now','-1 year')
+GROUP BY 1,2,3
+ORDER BY 4 DESC
+LIMIT 1;
+```
+
+```{sql connection=connection}
+--Quest2c: The most valuable customers from the beginning of the records
+
+-- Assumption: customer value is the total spending of customers at the hotel, considering both stay and mere usage of facilities
+
+SELECT DISTINCT a.guest_id
+, b.first_name
+, b.last_name
+, SUM(a.cash_flow) AS total_spent
+FROM Record a 
+INNER JOIN Guest b ON a.guest_id = b.guest_id
+GROUP BY 1,2,3
+ORDER BY 4 DESC
+LIMIT 1;
+```
+
+## Question 3: Which are the top countries where our customers come from?
+
+```{sql connection=connection}
+
+-- Assumption1: The countries where our customers come from are the countries where their current address is recorded (column "country" in table "Guest"). They might be different from their countries of nationality (column "nationality" in table "Guest")
+
+-- Assumption2: Customers are those having the actual stay or actual usage of facilities. Customers do not include those having reservation but not having actual stay or use of facilities
+
+SELECT DISTINCT b.country
+, COUNT(DISTINCT a.guest_id) AS number_of_customer
+FROM Record a
+INNER JOIN Guest b ON a.guest_id = b.guest_id
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 3; 
+
+```
+
+## Question 4: How much did the hotel pay in referral fees for each of the platforms that we have contracted with?
+
+```{sql connection=connection}
+--Assumption: Referral fees include fees for room booking and fees for facilities booking
+
+WITH record_referral_fees_table AS
+(
+SELECT DISTINCT a.hotel_id
+, b.booking_channel
+, b.booking_fee*COUNT(DISTINCT a.invoice_number) AS referral_fees 
+, 'Record' AS category
+FROM Record a
+LEFT JOIN Channel b ON a.channel_id = b.channel_id
+WHERE b.booking_channel != "Hotel Self Booking"
+GROUP BY 1
+) -- this table is to calculate referral fees of recorded actual stay/use of facilities
+
+, reservation_referral_fees_table AS
+(
+SELECT DISTINCT a.hotel_id
+, b.booking_channel
+, b.booking_fee*COUNT(DISTINCT a.reservation_number) AS referral_fees 
+, 'Reservation' AS category
+FROM Reservation a
+LEFT JOIN Channel b ON a.channel_id = b.channel_id
+WHERE b.booking_channel != "Hotel Self Booking"
+GROUP BY 1
+) -- this table is to calculate referral fees of current-reserved stay/use of facilities
+
+, full_referral_fees_table AS
+(
+SELECT * FROM record_referral_fees_table 
+UNION
+SELECT * FROM reservation_referral_fees_table
+) -- this table is to union both referal fees of recorded actual stay/use of facilities and referral fees of current-reserved stay/use of facilities
+
+SELECT DISTINCT a.hotel_id
+, b.hotel_name
+, a.booking_channel
+, SUM(a.referral_fees) AS referral_fees
+FROM full_referral_fees_table a
+LEFT JOIN Hotel b ON a.hotel_id = b.hotel_id
+GROUP BY 1,2,3
+ORDER BY 1,2,3
+
+```
+
+## Question 5: What is the utilization rate for each hotel (that is the average billable days of a hotel specified as the average utilization of room bookings for the last 12 months)
+
+```{r}
+# Create dim_date table with all date in last 12 months
+dim_date <- data.frame(seq(from = Sys.Date() -365, by = "day", length.out = 365))
+names(dim_date)[1] <- "dim_date"
+dim_date$dim_date <- as.numeric(as.POSIXct(dim_date$dim_date))
+RSQLite::dbWriteTable(connection, "dim_date", dim_date, overwrite = TRUE)
+RSQLite::dbListTables(connection)
+```
+
+```{sql connection=connection}
+-- The result of this query is average number of billable days of one room in each hotel
+
+WITH booking_date AS
+(
+SELECT DISTINCT hotel_id, room_id, guest_id, time_from, time_to, dim_date
+, CASE WHEN DATE(dim_date, 'unixepoch') >= DATE(time_from) AND DATE(dim_date, 'unixepoch') <= DATE(time_to) THEN "Yes"
+ELSE "No" END AS stay_date
+FROM Record
+CROSS JOIN dim_date 
+) -- this table is to check whether a specific room is occupied in a specific date of the year (stay_date is "Yes" if the room is occupied and "No" if the room is not occupied) 
+
+, occupied_room_utilization AS
+(
+SELECT DISTINCT hotel_id, room_id
+, COUNT(DISTINCT DATE(dim_date, 'unixepoch')) AS occupied_day
+FROM booking_date
+WHERE stay_date = "Yes"
+AND room_id >0 --filter the rooms in the hotel. If the observation in Record table is for a stay at hotel rooms, room_id would be greater than 0.If the observation in Record table is for use of facilities, room_id would be 0. 
+GROUP BY 1,2
+) -- this table is to query rooms that have at least 1 occupied day during the year
+
+, full_room_utilization AS
+(
+SELECT DISTINCT a.room_id
+, a.hotel_id
+, CASE WHEN b.occupied_day IS NOT NULL THEN b.occupied_day ELSE 0 END AS occupied_day
+FROM Room a
+LEFT JOIN occupied_room_utilization b
+ON a.room_id = b.room_id AND a.hotel_id = b.hotel_id
+) -- this table is to query all rooms in hotels. Number of occupied days can be 0 if the room is not booked for the whole year 
+
+SELECT DISTINCT a.hotel_id
+, b.hotel_name
+, COUNT(DISTINCT a.room_id) AS number_of_room
+, SUM(a.occupied_day)/COUNT(DISTINCT a.room_id) AS avg_room_billable_day
+FROM full_room_utilization a
+LEFT JOIN Hotel b ON a.hotel_id = b.hotel_id
+GROUP BY 1,2
+ORDER BY 4 DESC;
+
+```
+
+## Question 6: Calculate the Customer Value in terms of total spent for each customer before the current booking.
+
+```{sql connection=connection}
+-- Assumption: customer value is the total spending of customers at the hotel, considering both stay and mere usage of facilities
+
+SELECT DISTINCT a.guest_id
+, b.first_name
+, b.last_name
+, SUM(a.cash_flow) AS customer_value
+FROM Record a
+LEFT JOIN Guest b ON a.guest_id = b.guest_id
+WHERE DATE('now') > DATE(a.time_to) -- to filter all spending before the booking that has not finished yet
+GROUP BY 1
+ORDER BY 4 DESC
+```
+
+## Additional SQL Query 1 - Customer demographic profile: to check the profile of customers having reservation based on age range and gender. Based on the that management can understand their customer portrait and have tailored marketing strategies
+
+```{sql connection=connection}
+SELECT DISTINCT 
+CASE 
+  WHEN CAST((JulianDay('now') - JulianDay(birthdate)) AS INTEGER)/365 < 18 THEN "Under 18 y.o"
+  WHEN CAST((JulianDay('now') - JulianDay(birthdate)) AS INTEGER)/365 >= 18 AND CAST((JulianDay('now') - JulianDay(birthdate)) AS INTEGER)/365 <=25 THEN "18-25 y.o"
+  WHEN CAST((JulianDay('now') - JulianDay(birthdate)) AS INTEGER)/365 >=26 AND CAST((JulianDay('now') - JulianDay(birthdate)) AS INTEGER)/365 <= 35 THEN "26-35 y.o"
+  ELSE " Above 35 y.o"
+  END AS age_range
+, gender
+--, country -- not considering country segment because it is fragmented
+, COUNT(DISTINCT guest_id) AS number_of_guest
+FROM Guest
+GROUP BY 1,2 
+
+```
+
+## Additional SQL Query 2 - Find valuable customer segment for hotel stay
+
+```{sql connection=connection}
+WITH stay_invoice_number AS 
+(
+SELECT DISTINCT invoice_number
+FROM Record
+WHERE room_id > 0 
+) -- this table is to select invoice_number of guests who stayed by checking if room_id >0 or not. If a guest stay, he has room_id >0 for the stay room and room_id = 0 for facilities used.If a guest uses only facilities and does not stay, he has room_id = 0 for facilities used
+
+
+SELECT DISTINCT 
+CASE 
+  WHEN CAST((JulianDay('now') - JulianDay(birthdate)) AS INTEGER)/365 < 18 THEN "Under 18 y.o"
+  WHEN CAST((JulianDay('now') - JulianDay(birthdate)) AS INTEGER)/365 >= 18 AND CAST((JulianDay('now') - JulianDay(birthdate)) AS INTEGER)/365 <=25 THEN "18-25 y.o"
+  WHEN CAST((JulianDay('now') - JulianDay(birthdate)) AS INTEGER)/365 >=26 AND CAST((JulianDay('now') - JulianDay(birthdate)) AS INTEGER)/365 <= 35 THEN "26-35 y.o"
+  ELSE " Above 35 y.o"
+  END AS age_range
+, b.gender
+--, b.country -- not considering country segment because it is fragmented
+, COUNT(DISTINCT a.guest_id) AS number_of_guest
+, COUNT(DISTINCT a.invoice_number) AS number_of_stay
+, SUM(a.cash_flow) AS segment_value_total
+, ROUND(SUM(a.cash_flow)/COUNT(DISTINCT a.guest_id),0) AS segment_value_per_guest
+, ROUND(SUM(a.cash_flow)/COUNT(DISTINCT a.invoice_number),0) AS segment_value_per_stay
+FROM Record a
+LEFT JOIN Guest b
+ON a.guest_id = b.guest_id
+WHERE a.invoice_number IN (SELECT invoice_number FROM stay_invoice_number) --to filter data of guests who have stay in hotel rooms
+GROUP BY 1,2
+ORDER BY 7 DESC
+```
+
+## Additional SQL Query 3 - Check Seasonality by value and number of guests staying in each month of last year, then can prepare hotel resources accordingly
+
+```{sql connection=connection}
+WITH stay_invoice_number AS 
+(
+SELECT DISTINCT invoice_number
+FROM Record
+WHERE room_id > 0 
+) -- this table is to select invoice_number of guests who stayed by checking if room_id >0 or not. If a guest stay, he has room_id >0 for the stay room and room_id = 0 for facilities used.If a guest uses only facilities and does not stay, he has room_id = 0 for facilities used
+
+SELECT DISTINCT date(time_to,'start of month') AS month
+, SUM(cash_flow) AS customer_value
+, COUNT(DISTINCT guest_id) AS number_of_customers
+FROM Record
+WHERE DATE(time_to) >= DATE('now','-12 month') --filter last 12 months
+AND invoice_number IN (SELECT invoice_number FROM stay_invoice_number)
+GROUP BY 1
+ORDER BY 1 
+```
