@@ -1,2 +1,0 @@
-# Food Hygiene Agency Data Manipulation
-In this project, I parsed the data from Food Hygiene Agency with R as "Web Crawler ("Parse Data From Food Hygiene Agency).Rmd"), and visualised the output with Shiny ("shiny.R"), which contains the map and filters selection for users, manipulated table, and several changeable graphs according to user's choice.
