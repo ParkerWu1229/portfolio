@@ -1,6 +1,6 @@
 ---
-title: "Data Management - Part B"
-author: "GROUP_12"
+title: "Handling Unbalanced Panel (Combining Several Unstructured Datasets)"
+author: "Parker Wu"
 output:
   word_document: default
   html_document: default
@@ -9,7 +9,7 @@ editor_options:
 ---
 ## Set Up Environment
 
-```{r setup,attr.source='.numberLines'}
+```{r setup, attr.source='.numberLines'}
 #set up the environment
 library("dplyr")
 library("tidyr")
@@ -19,9 +19,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## First Step: Get the Directory of Each .xlsx
 
-```{r,attr.source='.numberLines'}
-# get the directory of each .xlsx of each country
-dic<-list.files("group_assignment",recursive = TRUE)
+```{r, attr.source='.numberLines'}
+# get the directory of each .xlsx of each country (each .xlsx file is inside its own folder but all folders are under the same directory)
+dic<-list.files("directory", recursive = TRUE)
 
 # delete the unwanted .xlsx in directory
 dic1<-dic[-1]
@@ -37,13 +37,13 @@ for (f in 1:length(dic1)){
   # every time one new directory is dene, count+1 to move to next space of list
   count<-count+1
   # select the space of list and put the combined string in it
-  dic2[count]<-list(paste0("group_assignment/",dic1[f]))
+  dic2[count]<-list(paste0("directory/",dic1[f]))
 }
 ```
 
 ## Second Step: Import, Clean, and Combine Each .xlsx
 
-```{r message = FALSE,attr.source='.numberLines'}
+```{r message = FALSE, attr.source='.numberLines'}
 # create an empty data frame for combining all clean .xlsx in for loop later
 df <- data.frame()
 
@@ -88,20 +88,20 @@ for (f in 1:length(dic2)) {
 # rearrange columns
 data_final <- df[,c(4,1,5,2,3)]
 
-# change .. to NA
+# change ".." to NA
 data_final$value[which(data_final$value=="..")]<-NA
 
 # arrange the data as requirement
 data_final <- data_final%>%
-  arrange(country,flow,year)
+  arrange(country, flow, year)
 
 # show the final data
 print(data_final)
 ```
 
-We keep the NA without omitting or replacing with 0 because we assume that removing NA results in removing some data, which is not a good thing for managing data, and that NA is different from 0. However, NA means there is no record for that product for that country in that year. Hence, when we count the rows of records, we will count without NA.
+NA is kept instead of omitting or replacing with 0 because removing NA might lead to removing some data within the same row, which is not a good thing for managing data, and that NA is different from 0. However, NA means there is no record for that product in that country in that year. Hence, the NA will be omitted when the rows are counted.
 
-```{r,attr.source='.numberLines'}
+```{r, attr.source='.numberLines'}
 # For the total number of records on the dataset without na
 row_number_without_na <- nrow(data_final%>%na.omit())
 print(row_number_without_na)
