@@ -1,0 +1,290 @@
+---
+title: "BRFSS"
+author: "Parker Wu"
+output: html_document
+---
+# Exploring the BRFSS data
+## Setup
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Load packages & data
+
+```{r}
+library(ggplot2)
+library(dplyr)
+load("brfss2013.RData")
+```
+
+
+## Part 1: Data
+*Introduction of Data*
+
+The objective of data from The Behavioral Risk Factor Surveillance System (BRFSS) is to collect uniform data to prevent some chronic diseases, injuries, or infectious diseases that affect the adult population. The survey is conducted via both landline telephone and cellular telephone since 2011.
+
+*Generabizability*
+
+The process of collection of this survey is based on stratified sampling method. The participants are divided into different groups based on their state, then random sample is conducted via telephone within each group. Because the coverage rate of telephone in the USA is about more than 97%, the survey is “Generabizability” to all population of America.
+
+However, there might be some problems that some people in the same household might be surveyed, resulting in some repeated data, such as number of children in the household. In spite of that, the probability is small enough to ignore.
+
+*Causality*
+
+Since the survey conducted by phone, this kind of result is observational study.They used questionnaire to collect data.It is not strong enough to find the causality in this way, but still enough to make some simple conclusions.
+
+*Data Arrange*
+
+First, I extract the necessary data in my Research Questions because there are too many useless variables (330) in the survey.
+
+```{r}
+Col <- c('X_state', 'children', 'income2', 'rcsrltn2','numadult','scntmony')
+data.analysis <- brfss2013[, Col]
+str(data.analysis)
+```
+
+```{r}
+#Show the histogram of children
+hist(data.analysis$children, main="Histogram of Number of Children", col='Black',
+     xlab="Number of children",ylab="Frequency", breaks=180, xlim = c(0,8))
+```
+
+```{r}
+#Show the skewed of children variable (Right skewed)
+qqnorm(data.analysis$children, col = 'black');
+qqline(data.analysis$children, col = 'red')
+```
+
+Now, to make the analysis easier, I divide data into 3 different datasets for 3 different research questions in part 2.
+
+```{r}
+# Dataset 1
+Col <- c('children', 'income2','scntmony')
+data.q1 <- brfss2013[, Col]
+
+# Dataset 2
+Col <- c('children', 'X_state')
+data.q2 <- brfss2013[, Col]
+
+# Dataset 3
+Col <- c('children', 'rcsrltn2','numadult')
+data.q3 <- brfss2013[, Col]
+```
+
+Then, I delete the NA value in subsets to make the analysis simpler.
+
+```{r}
+#Clean NA for subset 1
+data.q1 <- na.omit(data.q1,X_state)
+#Clean NA for subset 2
+data.q2 <- na.omit(data.q2,scntmony,income2)
+#Clean NA for subset 3
+data.q3 <- na.omit(data.q3,numadult,rcsrltn2)
+```
+
+## Part 2: Research questions
+I want to find out some reasons and distribution of low birth rate in America.
+
+### Research quesion 1:
+*What is the relation between income level of house member and number of children in household?*
+To find out whether a household feels stressful to raise a child, I use Income Level and Stress about the rent to find the relation because income level might vary among different states but the rent should be positive realtionship with income level. Hence, the relation between income level and stress of paying rent comparing to the number of children might help us to find whether a household feels more stressful about money will affect the nubmer of children they raise.
+
+*Variables*
+children: Number Of Children In Household
+
+income2: Income Level
+
+scntmony: Times Past 12 Months Worried/Stressed About Having Enough Money To Pay Your Rent
+
+### Research quesion 2:
+*Which state contributes the highest rate of children in America?*
+To find out the rural labor aging in America, it is useful to see the distribution of number of children in different states. Less children in one state, higher probability the state will face the insufficient of labor force in the future.
+
+*Variables*
+
+X_state: State Fips Code
+
+children: Number Of Children In Household
+
+### Research quesion 3:
+*Will the relationship to child and number of adults in household affect number of children in household?*
+Normally, people suggest that if more adults in a household or parents caring way can spend more time on children, so higher probability to have more children in a household. To check the bias, it will be a good way to see the relation between number of children and adults in household, and that between relationshop to child.
+
+*Variables*
+
+rcsrltn2: Relationship To Child
+
+children: Number Of Children In Household
+
+numadult: Number Of Adults In Household
+
+## Part 3: Exploratory data analysis
+### Research quesion 1:
+To solve the first question, we have to change the factors of income2 and scntmony into number.
+```{r}
+#Change the income to number
+data.q1 <- data.q1 %>%
+  mutate(n_income = as.numeric(income2))
+
+#Change the scntmony to number
+data.q1 <- data.q1 %>%
+  mutate(n_scntmony = as.numeric(scntmony))
+```
+
+Now we can see the table of corresponding factor and level.
+
+income2	level	scntmony
+Less than $10,000	1	Always
+Less than $15,000	2	Usually
+Less than $20,000	3	Sometimes
+Less than $25,000	4	Rarely
+Less than $35,000	5	Never
+Less than $50,000	6	
+Less than $75,000	7	
+$75,000 or more	8	
+We can see that higher the level is, richer a household is and less stress they feel about the rent.
+
+Then using mosaic plots can help us to find out the association between income and stress of paying rent.
+
+```{r}
+# the relation between income of household and stress of paying rent 
+mosaicplot( ~ income2 + scntmony, data = data.q1, 
+            xlab = 'Income level of household', ylab = 'Stress of paying rent', 
+            color = c('lightgreen', 'green'), main = 'Relation between Income and Stress')
+```
+
+It is obvious that richer a household is, less stress they feel as we always believe.
+
+Now, I will compare the income vs number of children and stress vs number of children, and then put 2 diagrams together to check accuracy more carefully.
+
+```{r}
+#Income vs number of children
+p1 <- ggplot(data.q1, aes(x = children, y = data.q1$n_income)) +
+geom_point(col = 'darkgreen') +
+ylab('Income level of household') + xlab("Number of children") +
+ggtitle("Income vs Number of children")+
+geom_line(aes(x = data.q1$n_income, colour = "red",group=children))
+
+p1
+```
+
+```{r}
+#Stress of paying rent vs number of children
+p2 <- ggplot(data.q1, aes(x = children, y = data.q1$n_scntmony)) +
+geom_point(col = 'blue') +
+ylab('Level of stress') + xlab("Number of children") +
+ggtitle("Level of stress vs Number of children") +
+geom_line(aes(x= data.q1$n_scntmony, col="red", group=children))
+
+p2
+```
+
+We can see throgh the regression line that richer a household is, the higher probability they have more children, and that more children they have in a household, more stress they feel about paying rent.
+
+To conclude, more children in a household indeed makes more stress to pay the rent, but the relation to income is stronger than that to stress of paying rent. Hence, if a household is richer, they might have more children and feel less stress although they might have more stress of paying rent.
+
+### Research quesion 2:
+First of all, after cleaning NA value in the databases, the rows remains 489,501 lines (origin is 491,775). We can use those data to analyze whether a household in a bigger city will have higher proportion of children.
+
+I think it is possible to show that trend because of other factors which do not include in the survey like house price or living price, but it is still worthy to find out the association of states and number of children to see whether there is a trend of brain drain.
+
+```{r}
+# To start the analysis, we have to key in the population of America
+US_population <- 328100000
+```
+
+All data are from United States Census Bureau: https://www.census.gov
+
+Next, I will sum the number of kids according each state.
+
+```{r}
+#Create a new variable to sum the number of children
+sum_children <- data.q2 %>% 
+  group_by(X_state) %>% 
+  summarise(children = sum(children))
+
+arrange(sum_children,desc(children))
+```
+
+We can see that Florida has the most children and District of Columbis has the least children.
+
+```{r}
+#Create a new variable of children of each state divides population of America
+pro_children <- sum_children %>%
+  mutate(pro_children = sum_children$children / US_population)
+
+arrange(pro_children, desc(pro_children))
+```
+
+```{r}
+#Find the top 5 and last 5 state
+sum_children_top <- sum_children[order( - sum_children$children),] %>% top_n(5)
+sum_children_last <- sum_children[order(sum_children$children),] %>% top_n(-5)
+ggplot(data = sum_children_top, aes(x = reorder(sum_children_top$X_state, - sum_children_top$children) , y = sum_children_top$children)) +
+geom_bar(stat = "identity") +xlab("State") + ylab("Number of children") +
+ggtitle("Top 5 States with most children in 2013")
+```
+
+```{r}
+ggplot(data = sum_children_last, aes(x = reorder(sum_children_last$X_state,  sum_children_last$children) , y = sum_children_last$children)) +
+geom_bar(stat = "identity") +xlab("State") + ylab("Number of children") +
+ggtitle("Last 5 States with most children in 2013")
+```
+
+It is interesting to see that although there is an association between population and number of children in each state, the association is too weak that sometimes a state owns less people might have higher proportion of children. We cannot conclude directly that a brain drain is happening, but it is truly a little relation.
+
+### Research quesion 3:
+Some people say that a closer relationshop with children will prefer to raise more children in a family. Also, some say that if a household has more adults to take care of children, it is more possible that they will have more children in a house. To identify the reality of these rumors, I will analyze the realtionship, number of adults in a household, and the number of children in a household.
+
+```{r}
+# See the plot to observe the distribution
+ggplot(data = data.q3, aes(x = data.q3$rcsrltn2 , y = data.q3$children)) + geom_point() + 
+xlab("Type of relationshop") + 
+ylab("Number of children") +
+ggtitle("Relation between relationshop and number of children")
+```
+
+Obviously, there is an outliner, which has 47 children in a household.
+
+```{r}
+# Find the row of the outliner
+data.q3[data.q3$children==47,]
+```
+
+Now we know it is on the 180060 row.
+
+```{r}
+# Create a new dataframe which exculdes the outliner
+data.q3_clear <- data.q3[-which(data.q3$children==47),]
+```
+
+We make the same graph again
+
+```{r}
+# See the plot to observe the distribution
+ggplot(data = data.q3_clear, aes(x = data.q3_clear$rcsrltn2 , y = data.q3_clear$children)) + 
+geom_point() + 
+xlab("Type of relationshop") + 
+ylab("Number of children") +
+ggtitle("Relation between relationshop and number of children")
+```
+
+We can see that there are more children if they are raised by parent directly. However, there is no too much difference among all these groups.
+
+Then, I move to next stage: Check the relation between number of adults and that of children.
+
+```{r}
+# See the plot to observe the distribution
+ggplot(data = data.q3_clear, aes(x = data.q3_clear$numadult , y = data.q3_clear$children)) +
+geom_point() + 
+xlab("Number of adults") + 
+ylab("Number of children") +
+ggtitle("Relation between number of adults and number of children")
+```
+
+Different from what we thought, more members in a house reduce the number of children.
+
+To conclude, the type of relationship only affects a little on the number of children in a household, but there is a negative association between number of adults and that of children.
+
+## Conclusion
+
+As I mentioned above, because the data is from observation survey, the accuracy of analysis might be insufficient to ensure. However, the data is still worthy to make an initial analysis.
