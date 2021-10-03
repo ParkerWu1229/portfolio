@@ -1,7 +1,11 @@
 # Parker Wu
+
 Email: parker.hh.wu@gmail.com
+
 Mobile: +44 7738 493186
+
 ---
+
 These folders are my past projects and courseworks for the last 3 years. 
 
 ## Folder 2020-2021
